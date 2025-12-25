@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useBackNavigation } from "../../hooks/useBackNavigation";
 import type { TodoItem, TodoList } from "../../types";
 import { EditItemForm } from "../list/EditItemForm";
 import { ListHeader } from "../list/ListHeader";
@@ -15,9 +16,11 @@ export default function SingleListView({
   onBack,
   onUpdateItems,
 }: SingleListViewProps) {
-  const [inputValue, setInputValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const [inputValue, setInputValue] = useState("");
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+
+  const handleUiBack = useBackNavigation(onBack);
 
   const processedItems = list.items
     .filter((item) => {
@@ -32,10 +35,6 @@ export default function SingleListView({
   const completedCount = list.items.filter((i) => i.completed).length;
   const totalCount = list.items.length;
   const progress = totalCount === 0 ? 0 : (completedCount / totalCount) * 100;
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
 
   const handleAddItem = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -101,7 +100,7 @@ export default function SingleListView({
         completedCount={completedCount}
         inputValue={inputValue}
         inputRef={inputRef}
-        onBack={onBack}
+        onBack={handleUiBack}
         onClearCompleted={handleClearCompleted}
         onAddItem={handleAddItem}
         onInputChange={setInputValue}

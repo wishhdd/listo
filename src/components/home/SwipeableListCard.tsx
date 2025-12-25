@@ -74,7 +74,7 @@ export function SwipeableListCard({
       </div>
 
       <div
-        className="relative z-10 h-full bg-white p-5 rounded-2xl shadow-lg border-slate-100 active:scale-[0.98] transition-transform duration-200 ease-out cursor-pointer flex items-center justify-between group touch-pan-y"
+        className="relative z-10 h-full bg-white p-5 rounded-2xl shadow-lg border-slate-100 active:scale-[0.98] transition-transform duration-200 ease-out cursor-pointer flex items-center justify-between group touch-pan-y overflow-hidden"
         style={{ transform: `translateX(${offset}px)` }}
         onClick={() => {
           if (offset === 0) onSelect();
