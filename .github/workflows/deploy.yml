@@ -3,45 +3,38 @@ name: Deploy to Beget
 on:
   push:
     branches:
-      - main # Робот проснется, когда код попадет в ветку main
+      - main
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. GitHub скачивает твой код себе на виртуальную машину
       - name: Checkout 🛎️
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      # 2. Устанавливает Node.js (как на твоем компьютере)
       - name: Setup Node.js ⚙️
         uses: actions/setup-node@v4
         with:
           node-version: "18"
           cache: "npm"
 
-      # 3. Скачивает все библиотеки из package.json
       - name: Install dependencies 📦
         run: npm ci
 
-      # 4. Собирает проект (создает папку dist с готовым сайтом)
       - name: Build 🏗️
         run: npm run build
 
-      # 5. Подключается к твоему серверу и копирует файлы
+      # 5. Деплоим по FTP
       - name: FTP Deploy 🚀
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-
-          # Откуда берем файлы (из папки сборки)
           local-dir: ./dist/
-
-          # Куда кладем на сервере (ПРОВЕРЬ ЭТОТ ПУТЬ В BEGET!)
-          server-dir: /wishhdd.ru/public_html/listo/
-
+          server-dir: ./
           protocol: ftp
-          dangerous-clean-slate: true # Удаляет старые файлы перед загрузкой новых
+          dangerous-clean-slate: true
