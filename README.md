@@ -1,73 +1,76 @@
-# React + TypeScript + Vite
+# Listo 🛒
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**Listo** — это современное PWA-приложение для ведения списков покупок. Разработано с фокусом на скорость, работу в оффлайне и удобство использования на мобильных устройствах.
 
-Currently, two official plugins are available:
+🔗 **Демо:** https://wishhdd.ru/listo/
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## ✨ Особенности
 
-## React Compiler
+- **📱 Progressive Web App (PWA):** Устанавливается на экран телефона как нативное приложение. Работает без интернета.
+- **🧠 Умная сортировка:**
+  - Активные товары всегда сверху.
+  - При поиске (ввод > 2 символов) совпадения "всплывают" на самый верх списка.
+- **👆 Жесты (Mobile First):** Поддержка свайпа влево для удаления элементов.
+- **💾 Local First:** Все данные хранятся локально в браузере (localStorage). Ваши списки не пропадут при закрытии вкладки.
+- **🎨 UI/UX:** Минималистичный интерфейс, оптимизированный под управление одной рукой.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 🛠 Технический стек
 
-## Expanding the ESLint configuration
+- **Core:** [React 18](https://reactjs.org/) + [TypeScript](https://www.typescriptlang.org/)
+- **Сборка:** [Vite](https://vitejs.dev/)
+- **Стилизация:** [Tailwind CSS](https://tailwindcss.com/)
+- **Иконки:** [Lucide React](https://lucide.dev/)
+- **PWA:** vite-plugin-pwa
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 🚀 Запуск проекта локально
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+1.  **Клонируйте репозиторий:**
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+    ```bash
+    git clone https://github.com/wishhdd/listo.git
+    cd listo
+    ```
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+2.  **Установите зависимости:**
+
+    ```bash
+    npm install
+    ```
+
+3.  **Запустите сервер разработки:**
+
+    ```bash
+    npm run dev
+    ```
+
+    Приложение будет доступно по адресу `http://localhost:5173`.
+
+4.  **Сборка для продакшена (и проверка PWA):**
+    ```bash
+    npm run build
+    npm run preview
+    ```
+
+## 📂 Структура проекта
+
+```text
+src/
+├── components/       # UI компоненты
+│   ├── list/         # Компоненты логики списка (Header, Input, SwipeItem)
+│   └── ui/           # Базовые элементы (Button, IconWrapper)
+├── hooks/            # Кастомные хуки (useLocalStorage, useListSort)
+├── views/            # Основные экраны (Home, SingleList)
+├── types/            # TypeScript интерфейсы
+└── App.tsx           # Корневой компонент и роутинг
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## 🗺 Планы на будущее (Roadmap)
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- [x] Этап 1: Базовая функциональность, PWA, LocalStorage.
+- [ ] Этап 2: Бэкенд и база данных.
+- [ ] Синхронизация списков между устройствами.
+- [ ] Совместное редактирование списков в реальном времени.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## 📄 Лицензия
+
+Этот проект распространяется под лицензией MIT. Подробнее см. файл [LICENSE](LICENSE).
