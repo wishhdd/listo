@@ -1,5 +1,6 @@
-import { ChevronLeft, Plus, Search, Trash2, X } from "lucide-react";
+import { ChevronLeft, Trash2 } from "lucide-react";
 import React, { type RefObject } from "react";
+import { AddItemInput } from "./AddItemInput";
 
 interface ListHeaderProps {
   title: string;
@@ -48,44 +49,23 @@ export function ListHeader({
           <Trash2 size={20} />
         </button>
       </div>
+
       <div className="h-1 w-full bg-slate-100">
         <div
           className={`h-full transition-all duration-500 ease-out ${themeColor}`}
           style={{ width: `${progress}%` }}
         />
       </div>
+
       <div className="p-4 pb-2">
-        <form onSubmit={onAddItem} className="relative">
-          <input
-            ref={inputRef}
-            type="text"
-            value={inputValue}
-            onChange={(e) => onInputChange(e.target.value)}
-            placeholder="Что купить?"
-            className="w-full pl-11 pr-4 py-3.5 bg-slate-100 text-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/50 focus:bg-white transition-all text-lg shadow-inner placeholder:text-slate-400"
-          />
-          <div className="absolute left-3.5 top-3.5 text-slate-400">
-            {inputValue.length > 0 ? (
-              <Plus
-                size={24}
-                className={
-                  inputValue.length > 2 ? "text-blue-500 transition-colors" : ""
-                }
-              />
-            ) : (
-              <Search size={22} />
-            )}
-          </div>
-          {inputValue && (
-            <button
-              type="button"
-              onClick={onClearInput}
-              className="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600 p-1 bg-slate-200 rounded-full"
-            >
-              <X size={14} />
-            </button>
-          )}
-        </form>
+        <AddItemInput
+          value={inputValue}
+          onChange={onInputChange}
+          onSubmit={onAddItem}
+          onClear={onClearInput}
+          inputRef={inputRef}
+          placeholder="Что купить?"
+        />
       </div>
     </div>
   );

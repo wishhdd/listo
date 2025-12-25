@@ -1,5 +1,5 @@
 import { Plus, Search, X } from "lucide-react";
-import { type RefObject } from "react";
+import React, { type RefObject } from "react";
 
 interface AddItemInputProps {
   value: string;

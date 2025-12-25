@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { HomeView } from "./components/views/HomeView";
+import HomeView from "./components/views/HomeView";
 import SingleListView from "./components/views/SingleListView";
 import { useLocalStorage } from "./hooks/useLocalStorage";
 import { type TodoItem, type TodoList } from "./types";
@@ -42,6 +42,14 @@ export default function App() {
     }
   };
 
+  const renameList = (id: string, newTitle: string) => {
+    setLists(
+      lists.map((list) =>
+        list.id === id ? { ...list, title: newTitle } : list
+      )
+    );
+  };
+
   const updateListItems = (listId: string, newItems: TodoItem[]) => {
     setLists(
       lists.map((list) =>
@@ -57,7 +65,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-safe overflow-hidden touch-pan-y">
-      {/* PWA StatusBar Fix (визуальная заглушка сверху) */}
       <div className="h-1 w-full bg-slate-50 fixed top-0 z-50" />
 
       {activeList ? (
@@ -72,6 +79,7 @@ export default function App() {
           onCreateList={createList}
           onSelectList={setActiveListId}
           onDeleteList={deleteList}
+          onRenameList={renameList}
         />
       )}
     </div>
