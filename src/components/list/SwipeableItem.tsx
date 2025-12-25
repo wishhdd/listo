@@ -42,9 +42,6 @@ export function SwipeableItem({
     const currentX = e.touches[0].clientX;
     const diff = currentX - startX.current;
 
-    // Блокируем свайп влево (удаление) для завершенных элементов (требование: нельзя удалить чекнутое)
-    if (item.completed && diff < 0) return;
-
     if (diff > -150 && diff < 150) {
       setOffset(diff);
     }
@@ -55,8 +52,7 @@ export function SwipeableItem({
     startX.current = null;
 
     if (offset < -60) {
-      if (!item.completed) setOffset(-80);
-      else setOffset(0);
+      setOffset(-80);
     } else if (offset > 60) {
       setOffset(80);
     } else {
@@ -72,7 +68,12 @@ export function SwipeableItem({
     <li className="relative h-16 select-none group list-none mb-2">
       <div className="absolute inset-0 rounded-2xl flex justify-between items-center overflow-hidden mx-2">
         <div
-          className={`w-1/2 h-full bg-blue-500 flex items-center justify-start pl-5 transition-opacity ${
+          onClick={(e) => {
+            e.stopPropagation();
+            onRename();
+            setOffset(0);
+          }}
+          className={`w-1/2 h-full bg-blue-500 flex items-center justify-start pl-5 transition-opacity cursor-pointer ${
             offset > 0 ? "opacity-100" : "opacity-0"
           }`}
         >
@@ -80,18 +81,21 @@ export function SwipeableItem({
         </div>
 
         <div
-          className={`w-1/2 h-full bg-red-500 flex items-center justify-end pr-5 transition-opacity ${
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          className={`w-1/2 h-full bg-red-500 flex items-center justify-end pr-5 transition-opacity cursor-pointer ${
             offset < 0 ? "opacity-100" : "opacity-0"
           }`}
         >
           <Trash2 className="text-white" size={20} />
         </div>
       </div>
-
       <div
-        className={`relative z-10 h-full flex items-center gap-3 px-4 mx-2 rounded-2xl border transition-transform duration-200 ease-out ${
+        className={`relative z-10 h-full flex items-center gap-3 px-4 mx-2 rounded-2xl border transition-transform duration-200 ease-out touch-pan-y ${
           item.completed
-            ? "bg-slate-50 border-transparent opacity-75"
+            ? "bg-slate-50 border-transparent"
             : "bg-white border-slate-100 shadow-sm"
         }`}
         style={{ transform: `translateX(${offset}px)` }}
@@ -161,17 +165,15 @@ export function SwipeableItem({
             <Edit2 size={18} />
           </button>
 
-          {!item.completed && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete();
-              }}
-              className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-            >
-              <Trash2 size={18} />
-            </button>
-          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+          >
+            <Trash2 size={18} />
+          </button>
         </div>
 
         {offset > 50 && (
@@ -184,7 +186,7 @@ export function SwipeableItem({
             className="absolute inset-y-0 left-[-80px] w-[80px] z-20"
           />
         )}
-        {offset < -50 && !item.completed && (
+        {offset < -50 && (
           <button
             onClick={(e) => {
               e.stopPropagation();

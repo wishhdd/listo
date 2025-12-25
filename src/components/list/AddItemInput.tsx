@@ -34,11 +34,19 @@ export function AddItemInput({
         className="w-full pl-11 pr-10 py-3.5 bg-slate-100 text-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/50 focus:bg-white transition-all text-lg shadow-inner placeholder:text-slate-400"
       />
 
-      <div className="absolute left-3.5 top-3.5 text-slate-400 pointer-events-none transition-colors duration-200">
+      <div className="absolute left-2 top-2 bottom-2 w-10 flex items-center justify-center transition-colors duration-200 z-10">
         {showPlus ? (
-          <Plus size={24} className={isSearchActive ? "text-blue-500" : ""} />
+          <button
+            type="submit"
+            className={`p-1 rounded-full hover:bg-slate-200 transition-colors cursor-pointer ${
+              isSearchActive ? "text-blue-500" : "text-slate-400"
+            }`}
+            title="Добавить"
+          >
+            <Plus size={24} />
+          </button>
         ) : (
-          <Search size={22} />
+          <Search size={22} className="text-slate-400 pointer-events-none" />
         )}
       </div>
 
@@ -46,7 +54,7 @@ export function AddItemInput({
         <button
           type="button"
           onClick={onClear}
-          className="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600 p-1 bg-slate-200 hover:bg-slate-300 rounded-full transition-colors"
+          className="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600 p-1 bg-slate-200 hover:bg-slate-300 rounded-full transition-colors z-20"
           aria-label="Очистить поле"
         >
           <X size={14} />

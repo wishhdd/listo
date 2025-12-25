@@ -1,6 +1,6 @@
-import { Check, X } from "lucide-react";
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { TodoItem, TodoList } from "../../types";
+import { EditItemForm } from "../list/EditItemForm";
 import { ListHeader } from "../list/ListHeader";
 import { SwipeableItem } from "../list/SwipeableItem";
 
@@ -19,11 +19,15 @@ export default function SingleListView({
   const inputRef = useRef<HTMLInputElement>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
-  // Фильтрация
-  const processedItems = list.items.filter((item) => {
-    if (!inputValue) return true;
-    return item.text.toLowerCase().includes(inputValue.toLowerCase());
-  });
+  const processedItems = list.items
+    .filter((item) => {
+      if (!inputValue) return true;
+      return item.text.toLowerCase().includes(inputValue.toLowerCase());
+    })
+    .sort((a, b) => {
+      if (a.completed === b.completed) return 0;
+      return a.completed ? 1 : -1;
+    });
 
   const completedCount = list.items.filter((i) => i.completed).length;
   const totalCount = list.items.length;
@@ -104,7 +108,7 @@ export default function SingleListView({
         onClearInput={() => setInputValue("")}
       />
 
-      <main className="flex-1 overflow-y-auto pb-32">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden pb-32">
         {list.items.length === 0 ? (
           <div className="text-center mt-20 opacity-40 px-6">
             <div className="flex flex-col items-center gap-2">
@@ -146,56 +150,5 @@ export default function SingleListView({
         )}
       </main>
     </div>
-  );
-}
-
-// Вспомогательный компонент для формы редактирования
-function EditItemForm({
-  initialValue,
-  onSave,
-  onCancel,
-}: {
-  initialValue: string;
-  onSave: (val: string) => void;
-  onCancel: () => void;
-}) {
-  const [val, setVal] = useState(initialValue);
-  const ref = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    ref.current?.focus();
-  }, []);
-
-  return (
-    <li className="list-none mb-2 px-2">
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          onSave(val);
-        }}
-        className="h-16 bg-white px-2 rounded-2xl shadow-md border-2 border-blue-100 flex items-center gap-2"
-      >
-        <input
-          ref={ref}
-          type="text"
-          value={val}
-          onChange={(e) => setVal(e.target.value)}
-          className="flex-1 px-2 text-lg font-medium text-slate-800 outline-none bg-transparent"
-        />
-        <button
-          type="submit"
-          className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200"
-        >
-          <Check size={20} />
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg"
-        >
-          <X size={20} />
-        </button>
-      </form>
-    </li>
   );
 }

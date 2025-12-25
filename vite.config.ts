@@ -8,14 +8,17 @@ let commitHash = "";
 try {
   commitHash = execSync("git rev-parse --short HEAD").toString().trim();
 } catch (e) {
-  console.warn(
-    "Не удалось получить git hash, используем dev-версию. Ошибка:",
-    e
-  );
+  console.warn("Не удалось получить git hash, используем dev-версию.", e);
   commitHash = "dev";
 }
 
-const appVersion = `${packageJson.version} (${commitHash})`;
+const versionParts = packageJson.version.split(".");
+const versionPrefix =
+  versionParts.length >= 2
+    ? `${versionParts[0]}.${versionParts[1]}`
+    : packageJson.version;
+
+const appVersion = `${versionPrefix}.${commitHash}`;
 
 export default defineConfig(({ command }) => {
   const isProd = command === "build";
