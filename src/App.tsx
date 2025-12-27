@@ -1,10 +1,9 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import HomeView from "./components/views/HomeView";
 import SingleListView from "./components/views/SingleListView";
 import { useLocalStorage } from "./hooks/useLocalStorage";
 import { type TodoItem, type TodoList } from "./types";
-
-const generateId = () => Math.random().toString(36).slice(2, 11);
+import { generateId } from "./utils/generateId";
 
 const THEME_COLORS = [
   "bg-blue-500",
@@ -23,17 +22,20 @@ export default function App() {
 
   const [activeListId, setActiveListId] = useState<string | null>(null);
 
-  const createList = (title: string) => {
-    const newList: TodoList = {
-      id: generateId(),
-      title,
-      items: [],
-      createdAt: Date.now(),
-      themeColor: getRandomColor(),
-    };
-    setLists([newList, ...lists]);
-    setActiveListId(newList.id);
-  };
+  const createList = useCallback(
+    (title: string) => {
+      const newList: TodoList = {
+        id: generateId(),
+        title,
+        items: [],
+        createdAt: Date.now(),
+        themeColor: getRandomColor(),
+      };
+      setLists((prevLists) => [newList, ...prevLists]);
+      setActiveListId(newList.id);
+    },
+    [setLists]
+  );
 
   const deleteList = (id: string) => {
     if (confirm("Удалить этот список навсегда?")) {

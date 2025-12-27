@@ -49,7 +49,7 @@ export default function HomeView({
   };
 
   return (
-    <div className="max-w-md mx-auto min-h-screen flex flex-col relative h-full">
+    <div className="max-w-7xl mx-auto min-h-screen flex flex-col relative h-full">
       <header className="px-6 py-8 pb-4">
         <div className="flex flex-col">
           <h1 className="text-4xl font-extrabold text-slate-800 tracking-tight flex items-baseline gap-2">
@@ -97,7 +97,7 @@ export default function HomeView({
         )}
       </main>
 
-      <div className="fixed bottom-6 right-6 left-6 max-w-md mx-auto flex justify-end pointer-events-none z-50">
+      <div className="fixed bottom-6 right-6 left-6 max-w-7xl mx-auto flex justify-end pointer-events-none z-50">
         {isCreating ? (
           <form
             onSubmit={handleSubmit}
