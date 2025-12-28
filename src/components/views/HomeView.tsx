@@ -1,4 +1,4 @@
-import { Plus, ShoppingBag } from "lucide-react";
+import { Github, Plus, ShoppingBag } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { TodoList } from "../../types";
 import { EditListForm } from "../home/EditListForm";
@@ -50,6 +50,15 @@ export default function HomeView({
 
   return (
     <div className="max-w-7xl mx-auto min-h-screen flex flex-col relative h-full">
+      <a
+        href="https://github.com/wishhdd/listo"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="absolute top-1 right-1 text-slate-300 hover:text-slate-600 transition-colors"
+        title="Исходный код проекта"
+      >
+        <Github size={24} />
+      </a>
       <header className="px-6 py-8 pb-4">
         <div className="flex flex-col">
           <h1 className="text-4xl font-extrabold text-slate-800 tracking-tight flex items-baseline gap-2">

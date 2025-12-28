@@ -57,16 +57,29 @@ export default function SingleListView({
   };
 
   const handleDragEnter = (index: number) => {
-    if (draggedItemIndex === null || draggedItemIndex === index) return;
+    if (draggedItemIndex === null || draggedItemIndex === index) {
+      return;
+    }
+    let targetIndex = index;
+    const maxActiveIndex = filteredActive.length - 1;
 
+    if (index === -1 || index > maxActiveIndex) {
+      targetIndex = maxActiveIndex;
+    }
+    if (targetIndex === draggedItemIndex) {
+      return;
+    }
     const newActiveItems = [...filteredActive];
     const draggedItem = newActiveItems[draggedItemIndex];
 
+    if (!draggedItem) {
+      return;
+    }
     newActiveItems.splice(draggedItemIndex, 1);
-    newActiveItems.splice(index, 0, draggedItem);
+    newActiveItems.splice(targetIndex, 0, draggedItem);
 
     onUpdateItems([...newActiveItems, ...completedItems]);
-    setDraggedItemIndex(index);
+    setDraggedItemIndex(targetIndex);
   };
 
   const handleDragEnd = () => {
