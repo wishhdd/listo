@@ -1,7 +1,6 @@
 import { useRef, useState } from "react";
-import type { TodoItem, TodoList } from "../../types";
-// Теперь пути верные, так как файлы восстановлены
 import { useBackNavigation } from "../../hooks/useBackNavigation";
+import type { TodoItem, TodoList } from "../../types";
 import { EditItemForm } from "../list/EditItemForm";
 import { ListHeader } from "../list/ListHeader";
 import { SwipeableItem } from "../list/SwipeableItem";
