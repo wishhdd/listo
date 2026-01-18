@@ -1,6 +1,9 @@
-import { Github, Plus, ShoppingBag } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Github, LogOut, Plus, ShoppingBag, User } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
 import type { TodoList } from "../../types";
+// Импорт хука авторизации
+import { useAuth } from "../../hooks/useAuth";
+import { AuthModal } from "../auth/AuthModal";
 import { EditListForm } from "../home/EditListForm";
 import { SwipeableListCard } from "../home/SwipeableListCard";
 
@@ -21,8 +24,11 @@ export default function HomeView({
 }: HomeViewProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
-
   const [editingListId, setEditingListId] = useState<string | null>(null);
+
+  // Подключаем хук авторизации
+  const { user, logout } = useAuth();
+  const [isAuthModalOpen, setAuthModalOpen] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -54,22 +60,39 @@ export default function HomeView({
         href="https://github.com/wishhdd/listo"
         target="_blank"
         rel="noopener noreferrer"
-        className="absolute top-1 right-1 text-slate-300 hover:text-slate-600 transition-colors"
+        className="absolute top-0 right-0 text-slate-300 hover:text-slate-600 transition-colors z-20"
         title="Исходный код проекта"
       >
         <Github size={24} />
       </a>
-      <header className="px-6 py-8 pb-4">
+      <header className="px-4 py-0 pb-4">
         <div className="flex flex-col">
-          <h1 className="text-4xl font-extrabold text-slate-800 tracking-tight flex items-baseline gap-2">
-            Listo
+          <div className=" flex items-baseline gap-2">
+            <h1 className="text-4xl font-extrabold text-slate-800 tracking-tight">
+              Listo
+            </h1>
             <span className="text-blue-500 text-lg font-bold">beta</span>
-          </h1>
+            <button
+              onClick={() => (user ? logout() : setAuthModalOpen(true))}
+              className={` transition-colors ${
+                user
+                  ? "text-blue-500 hover:text-blue-700"
+                  : "text-slate-300 hover:text-slate-600"
+              }`}
+              title={user ? `Выйти (${user.userName})` : "Войти"}
+            >
+              {user ? <LogOut size={24} /> : <User size={24} />}
+            </button>
+          </div>
           <span className="text-xs text-slate-400 font-mono mt-1 opacity-60">
             v{typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "dev"}
           </span>
         </div>
-        <p className="text-slate-500 mt-2">Твои списки покупок</p>
+        <p className="text-slate-500 mt-2">
+          {user
+            ? `Привет${user.userName ? ", " + user.userName : ""}.`
+            : "Твои списки"}
+        </p>
       </header>
 
       <main className="flex-1 px-4 pb-24 overflow-y-auto overflow-x-hidden">
@@ -106,7 +129,7 @@ export default function HomeView({
         )}
       </main>
 
-      <div className="fixed bottom-6 right-6 left-6 max-w-7xl mx-auto flex justify-end pointer-events-none z-50">
+      <div className="fixed bottom-6 right-6 left-6 max-w-md mx-auto flex justify-end pointer-events-none z-50">
         {isCreating ? (
           <form
             onSubmit={handleSubmit}
@@ -138,6 +161,12 @@ export default function HomeView({
           </button>
         )}
       </div>
+
+      {/* Окно авторизации */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+      />
     </div>
   );
 }

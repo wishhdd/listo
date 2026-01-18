@@ -1,7 +1,11 @@
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { InstallPrompt } from "./components/pwa/InstallPrompt";
 import HomeView from "./components/views/HomeView";
 import SingleListView from "./components/views/SingleListView";
+import { AuthProvider } from "./context/AuthContext";
+import { useAutoSync } from "./hooks/useAutoSync";
 import { useLocalStorage } from "./hooks/useLocalStorage";
+import { useSync } from "./hooks/useSync";
 import { type TodoItem, type TodoList } from "./types";
 import { generateId } from "./utils/generateId";
 
@@ -27,63 +31,175 @@ const THEME_COLORS = [
 const getRandomColor = () =>
   THEME_COLORS[Math.floor(Math.random() * THEME_COLORS.length)];
 
-export default function App() {
-  const [lists, setLists] = useLocalStorage<TodoList[]>("listo-data", []);
+const initialData: TodoList[] = [];
 
+function AppContent() {
+  const [lists, setLists] = useLocalStorage<TodoList[]>(
+    "todo-lists",
+    initialData
+  );
   const [activeListId, setActiveListId] = useState<string | null>(null);
 
-  const createList = useCallback(
-    (title: string) => {
-      const newList: TodoList = {
-        id: generateId(),
-        title,
-        items: [],
-        createdAt: Date.now(),
-        themeColor: getRandomColor(),
-      };
-      setLists((prevLists) => [newList, ...prevLists]);
-      setActiveListId(newList.id);
-    },
-    [setLists]
-  );
+  // Подключаем хук синхронизации
+  const {
+    syncLists,
+    syncItems,
+    pushItem,
+    deleteItemRemote,
+    pushList,
+    deleteListRemote,
+  } = useSync();
 
-  const deleteList = (id: string) => {
-    if (confirm("Удалить этот список навсегда?")) {
-      setLists(lists.filter((l) => l.id !== id));
-      if (activeListId === id) setActiveListId(null);
+  // 1. Авто-синхронизация (фоновая)
+  const handleSync = async (listId?: string) => {
+    if (listId) {
+      // Обновляем конкретный список с сервера
+      const currentList = lists.find((l) => l.id === listId);
+      if (!currentList) return;
+
+      const syncedItems = await syncItems(listId, currentList.items);
+
+      // Сливаем изменения
+      setLists((prev) =>
+        prev.map((l) => (l.id === listId ? { ...l, items: syncedItems } : l))
+      );
+    } else {
+      // Обновляем список списков
+      const syncedLists = await syncLists(lists);
+      setLists(syncedLists);
     }
   };
 
-  const renameList = (id: string, newTitle: string) => {
-    setLists(
-      lists.map((list) =>
-        list.id === id ? { ...list, title: newTitle } : list
-      )
-    );
-  };
-
-  const updateListItems = (listId: string, newItems: TodoItem[]) => {
-    setLists(
-      lists.map((list) =>
-        list.id === listId ? { ...list, items: newItems } : list
-      )
-    );
-  };
+  useAutoSync(activeListId, handleSync);
 
   const activeList = useMemo(
     () => lists.find((l) => l.id === activeListId),
     [lists, activeListId]
   );
 
+  // --- CRUD ОПЕРАЦИИ СПИСКОВ ---
+
+  const createList = (title: string) => {
+    const newList: TodoList = {
+      id: generateId(),
+      title,
+      items: [],
+      themeColor: getRandomColor(),
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    setLists([newList, ...lists]);
+    setActiveListId(newList.id);
+
+    // Сервер
+    pushList(newList);
+  };
+
+  const deleteList = (id: string) => {
+    if (confirm("Удалить этот список?")) {
+      setLists(lists.filter((l) => l.id !== id));
+      if (activeListId === id) {
+        setActiveListId(null);
+      }
+      // Сервер
+      deleteListRemote(id);
+    }
+  };
+
+  const renameList = (id: string, newTitle: string) => {
+    const updatedList = lists.find((l) => l.id === id);
+    if (!updatedList) return;
+
+    const newList = { ...updatedList, title: newTitle, updatedAt: Date.now() };
+    setLists(lists.map((list) => (list.id === id ? newList : list)));
+
+    // Сервер
+    pushList(newList);
+  };
+
+  // --- CRUD ОПЕРАЦИИ ТОВАРОВ (АТОМАРНЫЕ) ---
+  // Это решает проблему "зомби": мы явно шлем запрос DELETE
+
+  const handleAddItem = (text: string) => {
+    if (!activeListId) return;
+
+    const newItem: TodoItem = {
+      id: generateId(),
+      text,
+      completed: false,
+      position: 0,
+      updatedAt: Date.now(),
+    };
+
+    setLists((prev) =>
+      prev.map((list) => {
+        if (list.id !== activeListId) return list;
+        return {
+          ...list,
+          items: [newItem, ...list.items],
+          updatedAt: Date.now(),
+        };
+      })
+    );
+
+    // Сервер: Создать
+    pushItem(activeListId, newItem);
+  };
+
+  const handleDeleteItem = (itemId: string) => {
+    if (!activeListId) return;
+
+    setLists((prev) =>
+      prev.map((list) => {
+        if (list.id !== activeListId) return list;
+        return {
+          ...list,
+          items: list.items.filter((i) => i.id !== itemId),
+          updatedAt: Date.now(),
+        };
+      })
+    );
+
+    // Сервер: Удалить
+    deleteItemRemote(itemId);
+  };
+
+  const handleUpdateItem = (itemId: string, updates: Partial<TodoItem>) => {
+    if (!activeListId) return;
+
+    let updatedItemFull: TodoItem | null = null;
+
+    setLists((prev) =>
+      prev.map((list) => {
+        if (list.id !== activeListId) return list;
+
+        const newItems = list.items.map((item) => {
+          if (item.id !== itemId) return item;
+          updatedItemFull = { ...item, ...updates, updatedAt: Date.now() };
+          return updatedItemFull;
+        });
+
+        return { ...list, items: newItems, updatedAt: Date.now() };
+      })
+    );
+
+    // Сервер: Обновить
+    if (updatedItemFull) {
+      pushItem(activeListId, updatedItemFull);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-safe overflow-hidden touch-pan-y">
-      <div className="h-1 w-full bg-slate-50 fixed top-0 z-50" />
+      <div className="h-1 w-full bg-slate-50 sticky top-0 z-50"></div>
 
-      {activeList ? (
+      {activeListId && activeList ? (
         <SingleListView
           list={activeList}
           onBack={() => setActiveListId(null)}
-          onUpdateItems={(items) => updateListItems(activeList.id, items)}
+          onAddItem={handleAddItem}
+          onDeleteItem={handleDeleteItem}
+          onUpdateItem={handleUpdateItem}
         />
       ) : (
         <HomeView
@@ -94,6 +210,16 @@ export default function App() {
           onRenameList={renameList}
         />
       )}
+
+      <InstallPrompt />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }

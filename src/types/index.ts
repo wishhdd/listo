@@ -2,7 +2,6 @@ export interface TodoItem {
   id: string;
   text: string;
   completed: boolean;
-  createdAt: number;
   position: number;
   updatedAt: number;
 }
@@ -22,4 +21,5 @@ export interface User {
   userId: number;
   userName: string;
   role?: string;
+  message?: string;
 }

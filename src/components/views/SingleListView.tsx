@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
-import { useBackNavigation } from "../../hooks/useBackNavigation";
 import type { TodoItem, TodoList } from "../../types";
-import { generateId } from "../../utils/generateId";
+// Теперь пути верные, так как файлы восстановлены
+import { useBackNavigation } from "../../hooks/useBackNavigation";
 import { EditItemForm } from "../list/EditItemForm";
 import { ListHeader } from "../list/ListHeader";
 import { SwipeableItem } from "../list/SwipeableItem";
@@ -9,31 +9,26 @@ import { SwipeableItem } from "../list/SwipeableItem";
 interface SingleListViewProps {
   list: TodoList;
   onBack: () => void;
-  onUpdateItems: (items: TodoItem[]) => void;
+  onAddItem: (text: string) => void;
+  onDeleteItem: (itemId: string) => void;
+  onUpdateItem: (itemId: string, updates: Partial<TodoItem>) => void;
 }
-
-const createTodoItem = (text: string): TodoItem => {
-  return {
-    id: generateId(),
-    text: text,
-    completed: false,
-    createdAt: Date.now(),
-  };
-};
 
 export default function SingleListView({
   list,
   onBack,
-  onUpdateItems,
+  onAddItem,
+  onDeleteItem,
+  onUpdateItem,
 }: SingleListViewProps) {
   const [inputValue, setInputValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
-
   const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
 
   const handleUiBack = useBackNavigation(onBack);
 
+  // --- ЛОГИКА СОРТИРОВКИ ДЛЯ ОТОБРАЖЕНИЯ ---
   const activeItems = list.items.filter((i) => !i.completed);
   const completedItems = list.items.filter((i) => i.completed);
 
@@ -46,97 +41,57 @@ export default function SingleListView({
       !inputValue || i.text.toLowerCase().includes(inputValue.toLowerCase())
   );
 
-  const displayItems = [...filteredActive, ...filteredCompleted];
+  // Сортировка активных по position (для Drag-and-Drop)
+  filteredActive.sort((a, b) => (a.position || 0) - (b.position || 0));
 
+  const displayItems = [...filteredActive, ...filteredCompleted];
   const completedCount = completedItems.length;
   const totalCount = list.items.length;
   const progress = totalCount === 0 ? 0 : (completedCount / totalCount) * 100;
+
+  // --- HANDLERS ---
 
   const handleDragStart = (index: number) => {
     setDraggedItemIndex(index);
   };
 
   const handleDragEnter = (index: number) => {
-    if (draggedItemIndex === null || draggedItemIndex === index) {
-      return;
-    }
-    let targetIndex = index;
-    const maxActiveIndex = filteredActive.length - 1;
-
-    if (index === -1 || index > maxActiveIndex) {
-      targetIndex = maxActiveIndex;
-    }
-    if (targetIndex === draggedItemIndex) {
-      return;
-    }
-    const newActiveItems = [...filteredActive];
-    const draggedItem = newActiveItems[draggedItemIndex];
-
-    if (!draggedItem) {
-      return;
-    }
-    newActiveItems.splice(draggedItemIndex, 1);
-    newActiveItems.splice(targetIndex, 0, draggedItem);
-
-    onUpdateItems([...newActiveItems, ...completedItems]);
-    setDraggedItemIndex(targetIndex);
+    if (draggedItemIndex === null || draggedItemIndex === index) return;
+    setDraggedItemIndex(index);
   };
 
   const handleDragEnd = () => {
     setDraggedItemIndex(null);
   };
 
-  const handleAddItem = (e?: React.FormEvent) => {
+  const onFormSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
-    const trimmedText = inputValue.trim();
-    if (!trimmedText) return;
-    const newItem = createTodoItem(trimmedText);
-    onUpdateItems([newItem, ...activeItems, ...completedItems]);
-    setInputValue("");
-    inputRef.current?.focus();
+    if (inputValue.trim()) {
+      onAddItem(inputValue.trim());
+      setInputValue("");
+      inputRef.current?.focus();
+    }
   };
 
-  const handleToggleItem = (itemId: string) => {
-    const item = list.items.find((i) => i.id === itemId);
-    if (!item) return;
-
-    const newCompleted = !item.completed;
-    let newItems: TodoItem[];
-
-    if (!newCompleted) {
-      const otherItems = list.items.filter((i) => i.id !== itemId);
-      newItems = [{ ...item, completed: false }, ...otherItems];
-    } else {
-      const otherItems = list.items.filter((i) => i.id !== itemId);
-      newItems = [...otherItems, { ...item, completed: true }];
-    }
-
-    onUpdateItems(newItems);
+  const handleToggleItem = (item: TodoItem) => {
+    onUpdateItem(item.id, { completed: !item.completed });
   };
 
   const handleRenameItem = (itemId: string, newText: string) => {
     if (newText.trim()) {
-      onUpdateItems(
-        list.items.map((i) =>
-          i.id === itemId ? { ...i, text: newText.trim() } : i
-        )
-      );
+      onUpdateItem(itemId, { text: newText.trim() });
     }
     setEditingItemId(null);
   };
 
-  const handleDeleteItem = (itemId: string) => {
-    onUpdateItems(list.items.filter((i) => i.id !== itemId));
-  };
-
   const handleClearCompleted = () => {
     if (confirm("Удалить все завершенные товары?")) {
-      onUpdateItems(list.items.filter((i) => !i.completed));
+      completedItems.forEach((item) => onDeleteItem(item.id));
     }
   };
 
   return (
-    <div className="max-w-7xl mx-auto min-h-screen flex flex-col bg-white relative h-full">
+    <div className="max-w-md mx-auto min-h-screen flex flex-col bg-white relative h-full">
       <ListHeader
         title={list.title}
         themeColor={list.themeColor}
@@ -146,7 +101,7 @@ export default function SingleListView({
         inputRef={inputRef}
         onBack={handleUiBack}
         onClearCompleted={handleClearCompleted}
-        onAddItem={handleAddItem}
+        onAddItem={onFormSubmit}
         onInputChange={setInputValue}
         onClearInput={() => setInputValue("")}
       />
@@ -164,9 +119,6 @@ export default function SingleListView({
         ) : displayItems.length === 0 ? (
           <div className="text-center mt-20 opacity-40 px-6">
             <p>Ничего не найдено.</p>
-            <p className="text-sm">
-              Нажмите Enter или +, чтобы создать "{inputValue}"
-            </p>
           </div>
         ) : (
           <ul className="p-2 space-y-1">
@@ -187,9 +139,9 @@ export default function SingleListView({
                   item={item}
                   index={activeIndex}
                   searchTerm={inputValue}
-                  onToggle={() => handleToggleItem(item.id)}
+                  onToggle={() => handleToggleItem(item)}
                   onRename={() => setEditingItemId(item.id)}
-                  onDelete={() => handleDeleteItem(item.id)}
+                  onDelete={() => onDeleteItem(item.id)}
                   isDragging={draggedItemIndex === activeIndex && isActive}
                   onDragStart={handleDragStart}
                   onDragEnter={handleDragEnter}
