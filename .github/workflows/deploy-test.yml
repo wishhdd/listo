@@ -1,9 +1,9 @@
-name: Deploy to Listo
+name: Deploy tlisto
 
 on:
   push:
     branches:
-      - main
+      - test
 
 jobs:
   build-and-deploy:
@@ -25,16 +25,17 @@ jobs:
         run: npm ci
 
       - name: Build 🏗️
-        run: npm run build
+        run: VITE_BASE_PATH=/tlisto/ npm run build
 
-      # 5. Деплоим по FTP
       - name: FTP Deploy 🚀
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
+          username: ${{ secrets.FTP_TEST_USERNAME }}
+          password: ${{ secrets.FTP_TEST_PASSWORD }}
+
           local-dir: ./dist/
           server-dir: ./
+
           protocol: ftp
           dangerous-clean-slate: true

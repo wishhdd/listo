@@ -1,6 +1,6 @@
 import react from "@vitejs/plugin-react";
 import { execSync } from "child_process";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 import packageJson from "./package.json";
 
@@ -20,11 +20,13 @@ const versionPrefix =
 
 const appVersion = `${versionPrefix}.${commitHash}`;
 
-export default defineConfig(({ command }) => {
+export default defineConfig(({ command, mode }) => {
   const isProd = command === "build";
+  const env = loadEnv(mode, process.cwd(), "");
+  const basePath = env.VITE_BASE_PATH || (isProd ? "/listo/" : "/");
 
   return {
-    base: isProd ? "/listo/" : "/",
+    base: basePath,
 
     define: {
       __APP_VERSION__: JSON.stringify(appVersion),
@@ -47,8 +49,8 @@ export default defineConfig(({ command }) => {
           background_color: "#f8fafc",
           display: "standalone",
           orientation: "portrait",
-          scope: "/listo/",
-          start_url: "/listo/",
+          scope: basePath,
+          start_url: basePath,
           icons: [
             {
               src: "pwa-192x192.png",
