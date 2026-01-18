@@ -26,8 +26,9 @@ jobs:
 
       - name: Build 🏗️
         run: npm run build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
 
-      # 5. Деплоим по FTP
       - name: FTP Deploy 🚀
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
