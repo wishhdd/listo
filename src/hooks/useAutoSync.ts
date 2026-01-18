@@ -19,12 +19,9 @@ export function useAutoSync(
   }, [activeListId]);
 
   useEffect(() => {
-    if (!activeListId) return;
-
     const intervalId = setInterval(() => {
       if (navigator.onLine) {
-        console.log(`[Sync] 🔄 Фоновое обновление...`);
-        syncRef.current(activeListId);
+        syncRef.current(activeListId || undefined);
       }
     }, 15000);
 

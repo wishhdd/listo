@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useBackNavigation } from "../../hooks/useBackNavigation";
 import type { TodoItem, TodoList } from "../../types";
 import { EditItemForm } from "../list/EditItemForm";
@@ -23,45 +23,36 @@ export default function SingleListView({
   const [inputValue, setInputValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
-  const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
+
+  const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null); // ЧТО тащим
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null); // КУДА тащим
 
   const handleUiBack = useBackNavigation(onBack);
 
-  // --- ЛОГИКА СОРТИРОВКИ ДЛЯ ОТОБРАЖЕНИЯ ---
-  const activeItems = list.items.filter((i) => !i.completed);
+  const activeItems = useMemo(
+    () => list.items.filter((i) => !i.completed),
+    [list.items]
+  );
+  const sortedActiveItems = useMemo(
+    () =>
+      [...activeItems].sort((a, b) => (a.position || 0) - (b.position || 0)),
+    [activeItems]
+  );
   const completedItems = list.items.filter((i) => i.completed);
 
-  const filteredActive = activeItems.filter(
+  const displayActive = sortedActiveItems.filter(
     (i) =>
       !inputValue || i.text.toLowerCase().includes(inputValue.toLowerCase())
   );
-  const filteredCompleted = completedItems.filter(
+  const displayCompleted = completedItems.filter(
     (i) =>
       !inputValue || i.text.toLowerCase().includes(inputValue.toLowerCase())
   );
+  const displayItems = [...displayActive, ...displayCompleted];
 
-  // Сортировка активных по position (для Drag-and-Drop)
-  filteredActive.sort((a, b) => (a.position || 0) - (b.position || 0));
-
-  const displayItems = [...filteredActive, ...filteredCompleted];
   const completedCount = completedItems.length;
   const totalCount = list.items.length;
   const progress = totalCount === 0 ? 0 : (completedCount / totalCount) * 100;
-
-  // --- HANDLERS ---
-
-  const handleDragStart = (index: number) => {
-    setDraggedItemIndex(index);
-  };
-
-  const handleDragEnter = (index: number) => {
-    if (draggedItemIndex === null || draggedItemIndex === index) return;
-    setDraggedItemIndex(index);
-  };
-
-  const handleDragEnd = () => {
-    setDraggedItemIndex(null);
-  };
 
   const onFormSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -89,6 +80,66 @@ export default function SingleListView({
     }
   };
 
+  const handleDragStart = (index: number) => {
+    setDraggedItemIndex(index);
+  };
+
+  const handleDragEnter = (index: number) => {
+    setDragOverIndex(index);
+  };
+
+  const handleDragEnd = () => {
+    if (draggedItemIndex === null || dragOverIndex === null) {
+      setDraggedItemIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    const movedItem = sortedActiveItems[draggedItemIndex];
+    if (!movedItem) return;
+
+    if (dragOverIndex === -1) {
+      const lastActive = sortedActiveItems[sortedActiveItems.length - 1];
+      const lastPos = lastActive ? lastActive.position || 0 : 0;
+      const newPosition = lastPos + 1024;
+      onUpdateItem(movedItem.id, { position: newPosition });
+    } else if (draggedItemIndex !== dragOverIndex) {
+      const targetItem = sortedActiveItems[dragOverIndex];
+
+      if (targetItem) {
+        let newPosition = 0;
+
+        if (dragOverIndex === 0) {
+          const firstPos = sortedActiveItems[0].position || 0;
+          newPosition = firstPos - 1024;
+        } else if (dragOverIndex === sortedActiveItems.length - 1) {
+          const lastPos =
+            sortedActiveItems[sortedActiveItems.length - 1].position || 0;
+          newPosition = lastPos + 1024;
+        } else {
+          if (draggedItemIndex < dragOverIndex) {
+            const afterTarget = sortedActiveItems[dragOverIndex + 1];
+            const targetPos = targetItem.position || 0;
+            const nextPos = afterTarget
+              ? afterTarget.position || 0
+              : targetPos + 2048;
+            newPosition = (targetPos + nextPos) / 2;
+          } else {
+            const beforeTarget = sortedActiveItems[dragOverIndex - 1];
+            const targetPos = targetItem.position || 0;
+            const prevPos = beforeTarget
+              ? beforeTarget.position || 0
+              : targetPos - 2048;
+            newPosition = (prevPos + targetPos) / 2;
+          }
+        }
+        onUpdateItem(movedItem.id, { position: newPosition });
+      }
+    }
+    setDraggedItemIndex(null);
+    setDragOverIndex(null);
+  };
+
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col bg-white relative h-full">
       <ListHeader
@@ -111,7 +162,7 @@ export default function SingleListView({
             <div className="flex flex-col items-center gap-2">
               <p>Список пуст.</p>
               <p className="text-sm">
-                Начните вводить текст, чтобы добавить товары.
+                Начните вводить текст, чтобы добавить элемент'.
               </p>
             </div>
           </div>
@@ -121,9 +172,11 @@ export default function SingleListView({
           </div>
         ) : (
           <ul className="p-2 space-y-1">
-            {displayItems.map((item, index) => {
+            {displayItems.map((item) => {
               const isActive = !item.completed;
-              const activeIndex = isActive ? index : -1;
+              const activeIndex = isActive
+                ? sortedActiveItems.findIndex((i) => i.id === item.id)
+                : -1;
 
               return editingItemId === item.id ? (
                 <EditItemForm

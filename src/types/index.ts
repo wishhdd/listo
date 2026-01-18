@@ -23,3 +23,21 @@ export interface User {
   role?: string;
   message?: string;
 }
+
+export interface ServerTodoList {
+  id: string;
+  title: string;
+  owner_id: number;
+  members: number[];
+  updated_at: number | string;
+  created_at?: number | string;
+}
+
+export interface ServerTodoItem {
+  id: string;
+  list_id: string;
+  text: string;
+  is_completed: boolean;
+  position: number;
+  updated_at: number | string;
+}

@@ -1,45 +1,125 @@
 import { useCallback } from "react";
 import { api } from "../api/client";
-import type { TodoItem, TodoList } from "../types";
+import type {
+  ServerTodoItem,
+  ServerTodoList,
+  TodoItem,
+  TodoList,
+} from "../types";
+import { getRandomColor } from "../utils/theme";
 import { useAuth } from "./useAuth";
 
 export function useSync() {
   const { user } = useAuth();
+
+  const pushItem = useCallback(
+    async (listId: string, item: TodoItem) => {
+      if (!user) return;
+      try {
+        await api.post("/api/listo/item", {
+          id: item.id,
+          list_id: listId,
+          text: item.text,
+          position: item.position,
+          is_completed: item.completed,
+          updated_at: item.updatedAt,
+        });
+      } catch (e) {
+        console.error("Push Item Error:", e);
+      }
+    },
+    [user]
+  );
+
+  const pushList = useCallback(
+    async (list: TodoList) => {
+      if (!user) return;
+      try {
+        await api.post("/api/listo", {
+          id: list.id,
+          title: list.title,
+          owner_id: list.ownerId,
+          members: list.members,
+          updated_at: list.updatedAt,
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    },
+    [user]
+  );
+
+  const deleteItemRemote = useCallback(
+    async (itemId: string) => {
+      if (!user) return;
+      try {
+        await api.delete(`/api/listo/item/${itemId}`);
+      } catch (e) {
+        console.error(e);
+      }
+    },
+    [user]
+  );
+
+  const deleteListRemote = useCallback(
+    async (listId: string) => {
+      if (!user) return;
+      try {
+        await api.delete(`/api/listo/${listId}`);
+      } catch (e) {
+        console.error(e);
+      }
+    },
+    [user]
+  );
 
   const syncLists = useCallback(
     async (localLists: TodoList[]) => {
       if (!user) return localLists;
 
       try {
-        const serverLists = await api.get<TodoList[]>("/api/listo");
+        const serverRaw = await api.get<ServerTodoList[]>("/api/listo");
+
+        const serverLists: TodoList[] = serverRaw.map((s) => ({
+          id: s.id,
+          title: s.title,
+          themeColor: getRandomColor(),
+          items: [],
+          ownerId: s.owner_id,
+          members: s.members || [],
+          createdAt: s.created_at ? Number(s.created_at) : Date.now(),
+          updatedAt: Number(s.updated_at) || 0,
+        }));
+
         const mergedLists = [...localLists];
 
         for (const sList of serverLists) {
           const localIndex = mergedLists.findIndex((l) => l.id === sList.id);
           const localList = mergedLists[localIndex];
 
+          const resolvedColor = localList?.themeColor || sList.themeColor;
+
           if (!localList) {
-            mergedLists.push({ ...sList, items: [] });
+            mergedLists.push({ ...sList, themeColor: resolvedColor });
           } else {
             if (sList.updatedAt > localList.updatedAt) {
               mergedLists[localIndex] = {
                 ...localList,
-                title: sList.title,
-                themeColor: sList.themeColor,
-                ownerId: sList.ownerId,
-                members: sList.members,
-                updatedAt: sList.updatedAt,
+                ...sList,
+                themeColor: resolvedColor,
+                items: localList.items,
               };
             } else if (localList.updatedAt > sList.updatedAt) {
-              await api.post("/api/listo", localList);
+              await pushList(localList);
             }
           }
         }
+
         for (const lList of mergedLists) {
           const existsOnServer = serverLists.find((s) => s.id === lList.id);
           if (!existsOnServer) {
             if (!lList.ownerId || lList.ownerId === user.userId) {
-              await api.post("/api/listo", lList);
+              await pushList(lList);
             } else {
               const idx = mergedLists.indexOf(lList);
               if (idx > -1) mergedLists.splice(idx, 1);
@@ -52,7 +132,7 @@ export function useSync() {
         return localLists;
       }
     },
-    [user]
+    [user, pushList]
   );
 
   const syncItems = useCallback(
@@ -60,9 +140,18 @@ export function useSync() {
       if (!user) return localItems;
 
       try {
-        const serverItems = await api.get<TodoItem[]>(
+        const serverRaw = await api.get<ServerTodoItem[]>(
           `/api/listo/${listId}/items`
         );
+
+        const serverItems: TodoItem[] = serverRaw.map((s) => ({
+          id: s.id,
+          text: s.text,
+          position: Number(s.position),
+          completed: s.is_completed,
+          updatedAt: Number(s.updated_at) || 0,
+        }));
+
         const mergedItems = [...localItems];
 
         for (const sItem of serverItems) {
@@ -75,10 +164,7 @@ export function useSync() {
             if (sItem.updatedAt > (localItem.updatedAt || 0)) {
               mergedItems[localIndex] = sItem;
             } else if ((localItem.updatedAt || 0) > sItem.updatedAt) {
-              await api.post("/api/listo/item", {
-                ...localItem,
-                list_id: listId,
-              });
+              await pushItem(listId, localItem);
             }
           }
         }
@@ -86,10 +172,7 @@ export function useSync() {
         for (const lItem of mergedItems) {
           const existsOnServer = serverItems.find((s) => s.id === lItem.id);
           if (!existsOnServer) {
-            await api.post("/api/listo/item", {
-              ...lItem,
-              list_id: listId,
-            });
+            await pushItem(listId, lItem);
           }
         }
 
@@ -99,44 +182,8 @@ export function useSync() {
         return localItems;
       }
     },
-    [user]
+    [user, pushItem]
   );
-
-  const pushItem = async (listId: string, item: TodoItem) => {
-    if (!user) return;
-    try {
-      await api.post("/api/listo/item", { ...item, list_id: listId });
-    } catch (e) {
-      console.error("Push Item Error:", e);
-    }
-  };
-
-  const deleteItemRemote = async (itemId: string) => {
-    if (!user) return;
-    try {
-      await api.delete(`/api/listo/item/${itemId}`);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const pushList = async (list: TodoList) => {
-    if (!user) return;
-    try {
-      await api.post("/api/listo", list);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const deleteListRemote = async (listId: string) => {
-    if (!user) return;
-    try {
-      await api.delete(`/api/listo/${listId}`);
-    } catch (e) {
-      console.error(e);
-    }
-  };
 
   return {
     syncLists,
