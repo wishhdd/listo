@@ -1,4 +1,11 @@
+import {
+  DragDropContext,
+  Draggable,
+  Droppable,
+  type DropResult,
+} from "@hello-pangea/dnd";
 import { useMemo, useRef, useState } from "react";
+
 import { useBackNavigation } from "../../hooks/useBackNavigation";
 import type { TodoItem, TodoList } from "../../types";
 import { EditItemForm } from "../list/EditItemForm";
@@ -24,20 +31,19 @@ export default function SingleListView({
   const inputRef = useRef<HTMLInputElement>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
-  const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null); // ЧТО тащим
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null); // КУДА тащим
-
   const handleUiBack = useBackNavigation(onBack);
 
   const activeItems = useMemo(
     () => list.items.filter((i) => !i.completed),
     [list.items]
   );
+
   const sortedActiveItems = useMemo(
     () =>
       [...activeItems].sort((a, b) => (a.position || 0) - (b.position || 0)),
     [activeItems]
   );
+
   const completedItems = list.items.filter((i) => i.completed);
 
   const displayActive = sortedActiveItems.filter(
@@ -48,7 +54,6 @@ export default function SingleListView({
     (i) =>
       !inputValue || i.text.toLowerCase().includes(inputValue.toLowerCase())
   );
-  const displayItems = [...displayActive, ...displayCompleted];
 
   const completedCount = completedItems.length;
   const totalCount = list.items.length;
@@ -80,130 +85,190 @@ export default function SingleListView({
     }
   };
 
-  const handleDragStart = (index: number) => {
-    setDraggedItemIndex(index);
-  };
+  const handleDragEnd = (result: DropResult) => {
+    const { destination, source, draggableId } = result;
 
-  const handleDragEnter = (index: number) => {
-    setDragOverIndex(index);
-  };
+    if (!destination) return;
 
-  const handleDragEnd = () => {
-    if (draggedItemIndex === null || dragOverIndex === null) {
-      setDraggedItemIndex(null);
-      setDragOverIndex(null);
+    if (
+      destination.droppableId === source.droppableId &&
+      destination.index === source.index
+    ) {
       return;
     }
 
-    const movedItem = sortedActiveItems[draggedItemIndex];
+    const movedItem = sortedActiveItems.find((i) => i.id === draggableId);
     if (!movedItem) return;
 
-    if (dragOverIndex === -1) {
-      const lastActive = sortedActiveItems[sortedActiveItems.length - 1];
-      const lastPos = lastActive ? lastActive.position || 0 : 0;
-      const newPosition = lastPos + 1024;
+    if (destination.droppableId === "zone-top") {
+      const first = sortedActiveItems[0];
+      const firstPos = first ? first.position || 0 : 0;
+      const newPosition = firstPos - 1024;
+
+      console.log(`Drop to TOP: ${newPosition}`);
       onUpdateItem(movedItem.id, { position: newPosition });
-    } else if (draggedItemIndex !== dragOverIndex) {
-      const targetItem = sortedActiveItems[dragOverIndex];
-
-      if (targetItem) {
-        let newPosition = 0;
-
-        if (dragOverIndex === 0) {
-          const firstPos = sortedActiveItems[0].position || 0;
-          newPosition = firstPos - 1024;
-        } else if (dragOverIndex === sortedActiveItems.length - 1) {
-          const lastPos =
-            sortedActiveItems[sortedActiveItems.length - 1].position || 0;
-          newPosition = lastPos + 1024;
-        } else {
-          if (draggedItemIndex < dragOverIndex) {
-            const afterTarget = sortedActiveItems[dragOverIndex + 1];
-            const targetPos = targetItem.position || 0;
-            const nextPos = afterTarget
-              ? afterTarget.position || 0
-              : targetPos + 2048;
-            newPosition = (targetPos + nextPos) / 2;
-          } else {
-            const beforeTarget = sortedActiveItems[dragOverIndex - 1];
-            const targetPos = targetItem.position || 0;
-            const prevPos = beforeTarget
-              ? beforeTarget.position || 0
-              : targetPos - 2048;
-            newPosition = (prevPos + targetPos) / 2;
-          }
-        }
-        onUpdateItem(movedItem.id, { position: newPosition });
-      }
+      return;
     }
-    setDraggedItemIndex(null);
-    setDragOverIndex(null);
+
+    if (destination.droppableId === "zone-bottom") {
+      const last = sortedActiveItems[sortedActiveItems.length - 1];
+      const lastPos = last ? last.position || 0 : 0;
+      const newPosition = lastPos + 1024;
+
+      console.log(`Drop to BOTTOM: ${newPosition}`);
+      onUpdateItem(movedItem.id, { position: newPosition });
+      return;
+    }
+
+    if (destination.droppableId === "active-list") {
+      const reorderedList = Array.from(sortedActiveItems);
+      const [removed] = reorderedList.splice(source.index, 1);
+      reorderedList.splice(destination.index, 0, removed);
+
+      let newPosition = 0;
+
+      if (destination.index === 0) {
+        const first = reorderedList[1];
+        newPosition = (first?.position || 0) - 1024;
+      } else if (destination.index === reorderedList.length - 1) {
+        const last = reorderedList[destination.index - 1];
+        newPosition = (last?.position || 0) + 1024;
+      } else {
+        const prev = reorderedList[destination.index - 1];
+        const next = reorderedList[destination.index + 1];
+        newPosition = ((prev?.position || 0) + (next?.position || 0)) / 2;
+      }
+
+      onUpdateItem(movedItem.id, { position: newPosition });
+    }
   };
 
   return (
-    <div className="max-w-md mx-auto min-h-screen flex flex-col bg-white relative h-full">
-      <ListHeader
-        title={list.title}
-        themeColor={list.themeColor}
-        progress={progress}
-        completedCount={completedCount}
-        inputValue={inputValue}
-        inputRef={inputRef}
-        onBack={handleUiBack}
-        onClearCompleted={handleClearCompleted}
-        onAddItem={onFormSubmit}
-        onInputChange={setInputValue}
-        onClearInput={() => setInputValue("")}
-      />
-
-      <main className="flex-1 overflow-y-auto overflow-x-hidden pb-32">
-        {list.items.length === 0 ? (
-          <div className="text-center mt-20 opacity-40 px-6">
-            <div className="flex flex-col items-center gap-2">
-              <p>Список пуст.</p>
-              <p className="text-sm">
-                Начните вводить текст, чтобы добавить элемент'.
-              </p>
+    <DragDropContext onDragEnd={handleDragEnd}>
+      <div className="max-w-md mx-auto min-h-screen flex flex-col bg-white relative h-full">
+        <Droppable droppableId="zone-top">
+          {(provided) => (
+            <div
+              ref={provided.innerRef}
+              {...provided.droppableProps}
+              className="sticky top-0 z-40 bg-white"
+            >
+              <ListHeader
+                title={list.title}
+                themeColor={list.themeColor}
+                progress={progress}
+                completedCount={completedCount}
+                inputValue={inputValue}
+                inputRef={inputRef}
+                onBack={handleUiBack}
+                onClearCompleted={handleClearCompleted}
+                onAddItem={onFormSubmit}
+                onInputChange={setInputValue}
+                onClearInput={() => setInputValue("")}
+              />
+              <div className="hidden">{provided.placeholder}</div>
             </div>
-          </div>
-        ) : displayItems.length === 0 ? (
-          <div className="text-center mt-20 opacity-40 px-6">
-            <p>Ничего не найдено.</p>
-          </div>
-        ) : (
-          <ul className="p-2 space-y-1">
-            {displayItems.map((item) => {
-              const isActive = !item.completed;
-              const activeIndex = isActive
-                ? sortedActiveItems.findIndex((i) => i.id === item.id)
-                : -1;
+          )}
+        </Droppable>
 
-              return editingItemId === item.id ? (
-                <EditItemForm
-                  key={item.id}
-                  initialValue={item.text}
-                  onSave={(val) => handleRenameItem(item.id, val)}
-                  onCancel={() => setEditingItemId(null)}
-                />
-              ) : (
-                <SwipeableItem
-                  key={item.id}
-                  item={item}
-                  index={activeIndex}
-                  searchTerm={inputValue}
-                  onToggle={() => handleToggleItem(item)}
-                  onRename={() => setEditingItemId(item.id)}
-                  onDelete={() => onDeleteItem(item.id)}
-                  isDragging={draggedItemIndex === activeIndex && isActive}
-                  onDragStart={handleDragStart}
-                  onDragEnter={handleDragEnter}
-                  onDragEnd={handleDragEnd}
-                />
-              );
-            })}
-          </ul>
-        )}
-      </main>
-    </div>
+        <main className="flex-1 overflow-y-auto overflow-x-hidden pb-32">
+          {list.items.length === 0 ? (
+            <div className="text-center mt-20 opacity-40 px-6">
+              <div className="flex flex-col items-center gap-2">
+                <p>Список пуст.</p>
+                <p className="text-sm">Начните вводить текст...</p>
+              </div>
+            </div>
+          ) : displayActive.length === 0 && displayCompleted.length === 0 ? (
+            <div className="text-center mt-20 opacity-40 px-6">
+              <p>Ничего не найдено.</p>
+            </div>
+          ) : (
+            <>
+              <Droppable droppableId="active-list">
+                {(provided) => (
+                  <div
+                    className="p-2 min-h-[10px]"
+                    {...provided.droppableProps}
+                    ref={provided.innerRef}
+                  >
+                    {displayActive.map((item, index) => (
+                      <Draggable
+                        key={item.id}
+                        draggableId={item.id}
+                        index={index}
+                        isDragDisabled={
+                          !!inputValue ||
+                          item.completed ||
+                          editingItemId === item.id
+                        }
+                      >
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            className="outline-none"
+                          >
+                            {editingItemId === item.id ? (
+                              <EditItemForm
+                                initialValue={item.text}
+                                onSave={(val) => handleRenameItem(item.id, val)}
+                                onCancel={() => setEditingItemId(null)}
+                              />
+                            ) : (
+                              <SwipeableItem
+                                item={item}
+                                searchTerm={inputValue}
+                                onToggle={() => handleToggleItem(item)}
+                                onRename={() => setEditingItemId(item.id)}
+                                onDelete={() => onDeleteItem(item.id)}
+                                isDragging={snapshot.isDragging}
+                                dragHandleProps={provided.dragHandleProps}
+                              />
+                            )}
+                          </div>
+                        )}
+                      </Draggable>
+                    ))}
+                    {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
+
+              {displayCompleted.length > 0 && (
+                <Droppable droppableId="zone-bottom">
+                  {(provided, snapshot) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      className={`p-2 pt-0 mt-2 transition-colors duration-200 ${
+                        snapshot.isDraggingOver ? "bg-slate-50 rounded-xl" : ""
+                      }`}
+                    >
+                      <div className="opacity-60">
+                        {displayActive.length > 0 && (
+                          <hr className="my-2 border-slate-100" />
+                        )}
+                        {displayCompleted.map((item) => (
+                          <SwipeableItem
+                            key={item.id}
+                            item={item}
+                            searchTerm={inputValue}
+                            onToggle={() => handleToggleItem(item)}
+                            onRename={() => setEditingItemId(item.id)}
+                            onDelete={() => onDeleteItem(item.id)}
+                          />
+                        ))}
+                      </div>
+                      <div className="hidden">{provided.placeholder}</div>
+                    </div>
+                  )}
+                </Droppable>
+              )}
+            </>
+          )}
+        </main>
+      </div>
+    </DragDropContext>
   );
 }

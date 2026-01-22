@@ -1,3 +1,4 @@
+import type { DraggableProvidedDragHandleProps } from "@hello-pangea/dnd";
 import {
   CheckCircle2,
   Circle,
@@ -10,27 +11,21 @@ import type { TodoItem } from "../../types";
 
 interface SwipeableItemProps {
   item: TodoItem;
-  index: number;
   searchTerm: string;
   onToggle: () => void;
   onRename: () => void;
   onDelete: () => void;
-  onDragStart?: (index: number) => void;
-  onDragEnter?: (index: number) => void;
-  onDragEnd?: () => void;
+  dragHandleProps?: DraggableProvidedDragHandleProps | null;
   isDragging?: boolean;
 }
 
 export function SwipeableItem({
   item,
-  index,
   searchTerm,
   onToggle,
   onRename,
   onDelete,
-  onDragStart,
-  onDragEnter,
-  onDragEnd,
+  dragHandleProps,
   isDragging,
 }: SwipeableItemProps) {
   const [offset, setOffset] = useState(0);
@@ -53,12 +48,10 @@ export function SwipeableItem({
 
   const handleToggleClick = (e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
-
     if (item.completed) {
       onToggle();
       return;
     }
-
     setIsAnimating(true);
     setTimeout(() => {
       onToggle();
@@ -76,7 +69,6 @@ export function SwipeableItem({
     const diff = currentX - startX.current;
 
     if (Math.abs(diff) < 10) return;
-
     if (diff > -150 && diff < 150) {
       setOffset(diff);
     }
@@ -85,44 +77,9 @@ export function SwipeableItem({
   const handleTouchEnd = () => {
     if (!startX.current) return;
     startX.current = null;
-
-    if (offset < -60) {
-      setOffset(-80);
-    } else if (offset > 60) {
-      setOffset(80);
-    } else {
-      setOffset(0);
-    }
-  };
-
-  // --- DRAG AND DROP (Ручка) ---
-
-  // Desktop (Мышь)
-  const handleGripDragStart = (e: React.DragEvent) => {
-    e.dataTransfer.effectAllowed = "move";
-    if (onDragStart) onDragStart(index);
-  };
-
-  const handleGripDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-    if (onDragEnter) onDragEnter(index);
-  };
-
-  // Mobile (Сенсор)
-  const handleGripTouchMove = (e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    const targetElement = document.elementFromPoint(
-      touch.clientX,
-      touch.clientY
-    );
-    const listItem = targetElement?.closest("li[data-list-item-index]");
-
-    if (listItem) {
-      const targetIndex = Number(listItem.getAttribute("data-list-item-index"));
-      if (!isNaN(targetIndex) && onDragEnter) {
-        onDragEnter(targetIndex);
-      }
-    }
+    if (offset < -60) setOffset(-80);
+    else if (offset > 60) setOffset(80);
+    else setOffset(0);
   };
 
   const isMatch =
@@ -130,13 +87,10 @@ export function SwipeableItem({
     item.text.toLowerCase().includes(searchTerm.toLowerCase());
 
   return (
-    <li
-      data-list-item-index={index}
-      className={`relative select-none group list-none mb-2 transition-all duration-300 ease-out ${
+    <div
+      className={`relative select-none group mb-2 transition-all duration-300 ease-out ${
         isAnimating ? "opacity-0 translate-x-10 scale-95" : "opacity-100"
-      } ${isDragging ? "z-50 opacity-50" : "z-auto"}`}
-      onDragEnter={handleGripDragEnter}
-      onDragOver={(e) => e.preventDefault()}
+      } ${isDragging ? "z-50 opacity-90 scale-[1.02]" : "z-auto"}`}
     >
       <div
         className={`absolute inset-0 rounded-2xl flex justify-between items-center overflow-hidden mx-2 ${
@@ -173,7 +127,7 @@ export function SwipeableItem({
           item.completed
             ? "bg-slate-50 border-transparent"
             : "bg-white border-slate-100 shadow-sm"
-        }`}
+        } ${isDragging ? "ring-2 ring-blue-500 shadow-xl" : ""}`}
         style={{ transform: `translateX(${offset}px)` }}
         onClick={() => {
           if (offset !== 0) setOffset(0);
@@ -226,31 +180,14 @@ export function SwipeableItem({
           )}
         </span>
 
-        {!item.completed && !searchTerm && (
-          <div
-            draggable={true}
-            className="flex touch-none cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 self-center p-2 -mr-2"
-            onDragStart={handleGripDragStart}
-            onDragEnd={onDragEnd}
-            onTouchStart={() => {
-              if (onDragStart) {
-                onDragStart(index);
-              }
-            }}
-            onTouchMove={handleGripTouchMove}
-            onTouchEnd={onDragEnd}
-          >
-            <GripVertical size={20} />
-          </div>
-        )}
-
-        <div className="hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity self-center">
+        <div className="hidden md:flex items-center gap-1 self-center transition-all duration-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible">
           <button
             onClick={(e) => {
               e.stopPropagation();
               onRename();
             }}
             className="p-2 text-slate-300 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+            title="Редактировать"
           >
             <Edit2 size={18} />
           </button>
@@ -260,12 +197,21 @@ export function SwipeableItem({
               onDelete();
             }}
             className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+            title="Удалить"
           >
             <Trash2 size={18} />
           </button>
         </div>
 
-        {/* Свайп кнопки */}
+        {!item.completed && !searchTerm && dragHandleProps && (
+          <div
+            {...dragHandleProps}
+            className="flex touch-none cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 self-center p-2 -mr-2 outline-none"
+          >
+            <GripVertical size={20} />
+          </div>
+        )}
+
         {offset > 50 && (
           <button
             onClick={(e) => {
@@ -286,6 +232,6 @@ export function SwipeableItem({
           />
         )}
       </div>
-    </li>
+    </div>
   );
 }
