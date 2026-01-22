@@ -56,43 +56,50 @@ export default function HomeView({
 
   return (
     <div className="max-w-7xl mx-auto min-h-screen flex flex-col relative h-full">
-      <a
-        href="https://github.com/wishhdd/listo"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="absolute top-0 right-0 text-slate-300 hover:text-slate-600 transition-colors z-20"
-        title="Исходный код проекта"
-      >
-        <Github size={24} />
-      </a>
       <header className="px-4 py-0 pb-4">
         <div className="flex flex-col">
-          <div className=" flex items-baseline gap-2">
-            <h1 className="text-4xl font-extrabold text-slate-800 tracking-tight">
-              Listo
-            </h1>
-            <span className="text-blue-500 text-lg font-bold">beta</span>
+          <div className=" flex items-baseline justify-between gap-2">
+            <div className=" flex items-baseline gap-2">
+              <h1 className="text-4xl font-extrabold text-slate-800 tracking-tight">
+                Listo
+              </h1>
+              <span className="text-blue-500 text-lg font-bold">beta</span>
+            </div>
             <button
               onClick={() => (user ? logout() : setAuthModalOpen(true))}
               className={` transition-colors ${
                 user
-                  ? "text-blue-500 hover:text-blue-700"
-                  : "text-slate-300 hover:text-slate-600"
+                  ? "text-slate-300 hover:text-slate-600"
+                  : "text-blue-500 hover:text-blue-700"
               }`}
               title={user ? `Выйти (${user.userName})` : "Войти"}
             >
-              {user ? <LogOut size={24} /> : <User size={24} />}
+              {user ? <LogOut size={28} /> : <User size={28} />}
             </button>
           </div>
-          <span className="text-xs text-slate-400 font-mono mt-1 opacity-60">
-            v{typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "dev"}
-          </span>
+          <div className="flex items-center justify-between gap-2 text-slate-300 hover:text-slate-600 transition-colors">
+            <a
+              href="https://github.com/wishhdd/listo"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-slate-300 hover:text-slate-600 transition-colors"
+              title="Исходный код проекта"
+            >
+              <Github size={16} />
+              <span className="text-xs text-slate-400 font-mono opacity-60 leading-none">
+                v
+                {typeof __APP_VERSION__ !== "undefined"
+                  ? __APP_VERSION__
+                  : "dev"}
+              </span>{" "}
+            </a>
+            <p className="text-slate-900">
+              {user
+                ? `Привет${user.userName ? ", " + user.userName : ""}.`
+                : "Твои списки"}
+            </p>
+          </div>
         </div>
-        <p className="text-slate-500 mt-2">
-          {user
-            ? `Привет${user.userName ? ", " + user.userName : ""}.`
-            : "Твои списки"}
-        </p>
       </header>
 
       <main className="flex-1 px-4 pb-24 overflow-y-auto overflow-x-hidden">
