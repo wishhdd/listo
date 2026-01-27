@@ -63,6 +63,17 @@ function AppContent() {
   );
 
   const createList = (title: string) => {
+    const sortedLists = [...lists].sort((a, b) => {
+      const posA = a.position ?? a.createdAt;
+      const posB = b.position ?? b.createdAt;
+      return posA - posB;
+    });
+
+    const firstList = sortedLists[0];
+    const firstPos = firstList
+      ? firstList.position ?? firstList.createdAt
+      : Date.now();
+
     const newList: TodoList = {
       id: generateId(),
       title,
@@ -70,6 +81,7 @@ function AppContent() {
       themeColor: getRandomColor(),
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      position: firstPos - 1024,
     };
     setLists([newList, ...lists]);
     setActiveListId(newList.id);
@@ -93,6 +105,45 @@ function AppContent() {
     const newList = { ...updatedList, title: newTitle, updatedAt: Date.now() };
     setLists(lists.map((list) => (list.id === id ? newList : list)));
     pushList(newList);
+  };
+
+  const reorderLists = (sourceIndex: number, destinationIndex: number) => {
+    const sortedLists = [...lists].sort((a, b) => {
+      const posA = a.position ?? a.createdAt;
+      const posB = b.position ?? b.createdAt;
+      return posA - posB;
+    });
+
+    const reorderedList = Array.from(sortedLists);
+    const [removed] = reorderedList.splice(sourceIndex, 1);
+    reorderedList.splice(destinationIndex, 0, removed);
+
+    let newPosition = 0;
+
+    if (destinationIndex === 0) {
+      const first = reorderedList[1];
+      newPosition = (first?.position ?? first?.createdAt ?? 0) - 1024;
+    } else if (destinationIndex === reorderedList.length - 1) {
+      const last = reorderedList[destinationIndex - 1];
+      newPosition = (last?.position ?? last?.createdAt ?? 0) + 1024;
+    } else {
+      const prev = reorderedList[destinationIndex - 1];
+      const next = reorderedList[destinationIndex + 1];
+      const prevPos = prev?.position ?? prev?.createdAt ?? 0;
+      const nextPos = next?.position ?? next?.createdAt ?? 0;
+      newPosition = (prevPos + nextPos) / 2;
+    }
+
+    const updatedList = {
+      ...removed,
+      position: newPosition,
+      updatedAt: Date.now(),
+    };
+
+    setLists(
+      lists.map((list) => (list.id === removed.id ? updatedList : list))
+    );
+    pushList(updatedList);
   };
 
   const handleAddItem = (text: string) => {
@@ -194,6 +245,7 @@ function AppContent() {
             setLists([]);
             setActiveListId(null);
           }}
+          onReorderLists={reorderLists}
         />
       )}
 

@@ -15,6 +15,7 @@ export interface TodoList {
   updatedAt: number;
   ownerId?: number;
   members?: number[];
+  position?: number;
 }
 
 export interface User {

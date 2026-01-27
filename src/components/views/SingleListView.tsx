@@ -145,7 +145,7 @@ export default function SingleListView({
 
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
-      <div className="max-w-md mx-auto min-h-screen flex flex-col bg-white relative h-full">
+      <div className="max-w-7xl mx-auto min-h-screen flex flex-col bg-white relative h-full">
         <Droppable droppableId="zone-top">
           {(provided) => (
             <div

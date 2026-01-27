@@ -1,5 +1,11 @@
+import {
+  DragDropContext,
+  Draggable,
+  Droppable,
+  type DropResult,
+} from "@hello-pangea/dnd";
 import { Github, LogOut, Plus, ShoppingBag, User } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import type { TodoList } from "../../types";
 import { AuthModal } from "../auth/AuthModal";
@@ -14,6 +20,7 @@ interface HomeViewProps {
   onDeleteList: (id: string) => void;
   onRenameList?: (id: string, newTitle: string) => void;
   onClearLists: () => void;
+  onReorderLists: (sourceIndex: number, destinationIndex: number) => void;
 }
 
 export default function HomeView({
@@ -23,6 +30,7 @@ export default function HomeView({
   onDeleteList,
   onRenameList,
   onClearLists,
+  onReorderLists,
 }: HomeViewProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -90,6 +98,29 @@ export default function HomeView({
     await logout();
   };
 
+  const sortedLists = useMemo(() => {
+    return [...lists].sort((a, b) => {
+      const posA = a.position ?? a.createdAt;
+      const posB = b.position ?? b.createdAt;
+      return posA - posB;
+    });
+  }, [lists]);
+
+  const handleDragEnd = (result: DropResult) => {
+    const { destination, source } = result;
+
+    if (!destination) return;
+
+    if (
+      destination.droppableId === source.droppableId &&
+      destination.index === source.index
+    ) {
+      return;
+    }
+
+    onReorderLists(source.index, destination.index);
+  };
+
   return (
     <div className="max-w-7xl mx-auto min-h-screen flex flex-col relative h-full">
       <header className="px-4 py-0 pb-4">
@@ -138,41 +169,72 @@ export default function HomeView({
         </div>
       </header>
 
-      <main className="flex-1 px-4 pb-24 overflow-y-auto overflow-x-hidden">
-        {lists.length === 0 ? (
-          <div className="text-center mt-20 opacity-40">
-            <ShoppingBag className="w-16 h-16 mx-auto mb-4" />
-            <p>
-              Нет списков.
-              <br />
-              Создай первый!
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {lists.map((list) =>
-              editingListId === list.id ? (
-                <EditListForm
-                  key={list.id}
-                  list={list}
-                  onSave={(title) => handleRename(list.id, title)}
-                  onCancel={() => setEditingListId(null)}
-                />
-              ) : (
-                <SwipeableListCard
-                  key={list.id}
-                  list={list}
-                  onSelect={() => onSelectList(list.id)}
-                  onDelete={() => onDeleteList(list.id)}
-                  onRename={() => setEditingListId(list.id)}
-                />
-              )
-            )}
-          </div>
-        )}
-      </main>
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <main className="flex-1 px-4 pb-24 overflow-y-auto overflow-x-hidden">
+          {sortedLists.length === 0 ? (
+            <div className="text-center mt-20 opacity-40">
+              <ShoppingBag className="w-16 h-16 mx-auto mb-4" />
+              <p>
+                Нет списков.
+                <br />
+                Создай первый!
+              </p>
+            </div>
+          ) : (
+            <Droppable droppableId="lists">
+              {(provided) => (
+                <div
+                  {...provided.droppableProps}
+                  ref={provided.innerRef}
+                  className="space-y-3"
+                >
+                  {sortedLists.map((list, index) =>
+                    editingListId === list.id ? (
+                      <EditListForm
+                        key={list.id}
+                        list={list}
+                        onSave={(title) => handleRename(list.id, title)}
+                        onCancel={() => setEditingListId(null)}
+                      />
+                    ) : (
+                      <Draggable
+                        key={list.id}
+                        draggableId={list.id}
+                        index={index}
+                        isDragDisabled={isCreating}
+                      >
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            className={
+                              snapshot.isDragging
+                                ? "opacity-90 scale-[1.02] z-50"
+                                : ""
+                            }
+                          >
+                            <SwipeableListCard
+                              list={list}
+                              onSelect={() => onSelectList(list.id)}
+                              onDelete={() => onDeleteList(list.id)}
+                              onRename={() => setEditingListId(list.id)}
+                              dragHandleProps={provided.dragHandleProps}
+                              isDragging={snapshot.isDragging}
+                            />
+                          </div>
+                        )}
+                      </Draggable>
+                    )
+                  )}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          )}
+        </main>
+      </DragDropContext>
 
-      <div className="fixed bottom-6 right-6 left-6 max-w-md mx-auto flex justify-end pointer-events-none z-50">
+      <div className="fixed bottom-6 right-6 left-6 max-w-7xl mx-auto flex justify-end pointer-events-none z-50">
         {isCreating ? (
           <form
             onSubmit={handleSubmit}
