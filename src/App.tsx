@@ -190,6 +190,10 @@ function AppContent() {
           onSelectList={setActiveListId}
           onDeleteList={deleteList}
           onRenameList={renameList}
+          onClearLists={() => {
+            setLists([]);
+            setActiveListId(null);
+          }}
         />
       )}
 

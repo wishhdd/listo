@@ -1,9 +1,9 @@
 import { Github, LogOut, Plus, ShoppingBag, User } from "lucide-react";
-import React, { useEffect, useRef, useState } from "react";
-import type { TodoList } from "../../types";
-// Импорт хука авторизации
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../hooks/useAuth";
+import type { TodoList } from "../../types";
 import { AuthModal } from "../auth/AuthModal";
+import { LogoutConfirmModal } from "../auth/LogoutConfirmModal";
 import { EditListForm } from "../home/EditListForm";
 import { SwipeableListCard } from "../home/SwipeableListCard";
 
@@ -13,6 +13,7 @@ interface HomeViewProps {
   onSelectList: (id: string) => void;
   onDeleteList: (id: string) => void;
   onRenameList?: (id: string, newTitle: string) => void;
+  onClearLists: () => void;
 }
 
 export default function HomeView({
@@ -21,14 +22,15 @@ export default function HomeView({
   onSelectList,
   onDeleteList,
   onRenameList,
+  onClearLists,
 }: HomeViewProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [editingListId, setEditingListId] = useState<string | null>(null);
 
-  // Подключаем хук авторизации
   const { user, logout } = useAuth();
   const [isAuthModalOpen, setAuthModalOpen] = useState(false);
+  const [isLogoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -47,11 +49,45 @@ export default function HomeView({
     }
   }, [isCreating]);
 
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (isLogoutConfirmOpen) {
+        localStorage.removeItem("listo");
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [isLogoutConfirmOpen]);
+
   const handleRename = (id: string, title: string) => {
     if (onRenameList && title.trim()) {
       onRenameList(id, title.trim());
     }
     setEditingListId(null);
+  };
+
+  const handleLogoutClick = () => {
+    if (user) {
+      setLogoutConfirmOpen(true);
+    } else {
+      setAuthModalOpen(true);
+    }
+  };
+
+  const handleLogoutConfirm = async () => {
+    setLogoutConfirmOpen(false);
+    await logout();
+  };
+
+  const handleLogoutCancel = async () => {
+    setLogoutConfirmOpen(false);
+    localStorage.removeItem("listo");
+    onClearLists();
+    await logout();
   };
 
   return (
@@ -66,7 +102,7 @@ export default function HomeView({
               <span className="text-blue-500 text-lg font-bold">beta</span>
             </div>
             <button
-              onClick={() => (user ? logout() : setAuthModalOpen(true))}
+              onClick={handleLogoutClick}
               className={` transition-colors ${
                 user
                   ? "text-slate-300 hover:text-slate-600"
@@ -169,10 +205,15 @@ export default function HomeView({
         )}
       </div>
 
-      {/* Окно авторизации */}
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setAuthModalOpen(false)}
+      />
+
+      <LogoutConfirmModal
+        isOpen={isLogoutConfirmOpen}
+        onConfirm={handleLogoutConfirm}
+        onCancel={handleLogoutCancel}
       />
     </div>
   );
