@@ -18,7 +18,9 @@ interface HomeViewProps {
   onCreateList: (title: string) => void;
   onSelectList: (id: string) => void;
   onDeleteList: (id: string) => void;
+  onLeaveList?: (id: string) => void;
   onRenameList?: (id: string, newTitle: string) => void;
+  onOpenShare?: (listId: string) => void;
   onClearLists: () => void;
   onReorderLists: (sourceIndex: number, destinationIndex: number) => void;
 }
@@ -28,7 +30,9 @@ export default function HomeView({
   onCreateList,
   onSelectList,
   onDeleteList,
+  onLeaveList,
   onRenameList,
+  onOpenShare,
   onClearLists,
   onReorderLists,
 }: HomeViewProps) {
@@ -105,6 +109,7 @@ export default function HomeView({
       return posA - posB;
     });
   }, [lists]);
+
 
   const handleDragEnd = (result: DropResult) => {
     const { destination, source } = result;
@@ -218,6 +223,23 @@ export default function HomeView({
                               onSelect={() => onSelectList(list.id)}
                               onDelete={() => onDeleteList(list.id)}
                               onRename={() => setEditingListId(list.id)}
+                              onLeave={
+                                onLeaveList
+                                  ? () => onLeaveList(list.id)
+                                  : undefined
+                              }
+                              onShare={
+                                user &&
+                                list.ownerId === user.userId &&
+                                onOpenShare
+                                  ? () => onOpenShare(list.id)
+                                  : undefined
+                              }
+                              isOwner={
+                                !user ||
+                                list.ownerId === undefined ||
+                                list.ownerId === user.userId
+                              }
                               dragHandleProps={provided.dragHandleProps}
                               isDragging={snapshot.isDragging}
                             />
@@ -277,6 +299,7 @@ export default function HomeView({
         onConfirm={handleLogoutConfirm}
         onCancel={handleLogoutCancel}
       />
+
     </div>
   );
 }

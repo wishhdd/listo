@@ -39,7 +39,7 @@ export function useSync() {
           id: list.id,
           title: list.title,
           owner_id: list.ownerId,
-          members: list.members,
+          members: list.members ?? [],
           updated_at: list.updatedAt,
         });
       } catch (e) {
@@ -73,6 +73,19 @@ export function useSync() {
     [user]
   );
 
+  const leaveList = useCallback(
+    async (listId: string) => {
+      if (!user) return;
+      try {
+        await api.post(`/api/listo/${listId}/leave`, {});
+      } catch (e) {
+        console.error("Leave list error:", e);
+        throw e;
+      }
+    },
+    [user]
+  );
+
   const syncLists = useCallback(
     async (localLists: TodoList[]) => {
       if (!user) return localLists;
@@ -86,6 +99,7 @@ export function useSync() {
           themeColor: getRandomColor(),
           items: [],
           ownerId: s.owner_id,
+          ownerName: s.owner_user_name ?? undefined,
           members: s.members || [],
           createdAt: s.created_at ? Number(s.created_at) : Date.now(),
           updatedAt: Number(s.updated_at) || 0,
@@ -192,5 +206,6 @@ export function useSync() {
     deleteItemRemote,
     pushList,
     deleteListRemote,
+    leaveList,
   };
 }

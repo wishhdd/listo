@@ -18,6 +18,7 @@ interface SingleListViewProps {
   onAddItem: (text: string) => void;
   onDeleteItem: (itemId: string) => void;
   onUpdateItem: (itemId: string, updates: Partial<TodoItem>) => void;
+  onShare?: () => void;
 }
 
 export default function SingleListView({
@@ -26,6 +27,7 @@ export default function SingleListView({
   onAddItem,
   onDeleteItem,
   onUpdateItem,
+  onShare,
 }: SingleListViewProps) {
   const [inputValue, setInputValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -162,6 +164,7 @@ export default function SingleListView({
                 inputRef={inputRef}
                 onBack={handleUiBack}
                 onClearCompleted={handleClearCompleted}
+                onShare={onShare}
                 onAddItem={onFormSubmit}
                 onInputChange={setInputValue}
                 onClearInput={() => setInputValue("")}

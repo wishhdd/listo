@@ -14,6 +14,7 @@ export interface TodoList {
   themeColor: string;
   updatedAt: number;
   ownerId?: number;
+  ownerName?: string;
   members?: number[];
   position?: number;
 }
@@ -29,6 +30,7 @@ export interface ServerTodoList {
   id: string;
   title: string;
   owner_id: number;
+  owner_user_name?: string | null;
   members: number[];
   updated_at: number | string;
   created_at?: number | string;

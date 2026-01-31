@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { InstallPrompt } from "./components/pwa/InstallPrompt";
+import { ShareListModal } from "./components/home/ShareListModal";
 import HomeView from "./components/views/HomeView";
 import SingleListView from "./components/views/SingleListView";
 import { AuthProvider } from "./context/AuthContext";
@@ -18,6 +19,7 @@ function AppContent() {
   const { user } = useAuth();
   const [lists, setLists] = useLocalStorage<TodoList[]>("listo", initialData);
   const [activeListId, setActiveListId] = useState<string | null>(null);
+  const [shareListId, setShareListId] = useState<string | null>(null);
 
   const {
     syncLists,
@@ -26,6 +28,7 @@ function AppContent() {
     deleteItemRemote,
     pushList,
     deleteListRemote,
+    leaveList,
   } = useSync();
 
   const handleSync = async (listId?: string) => {
@@ -103,6 +106,8 @@ function AppContent() {
       createdAt: Date.now(),
       updatedAt: Date.now(),
       position: firstPos - 1024,
+      ownerId: user?.userId,
+      members: user ? [] : undefined,
     };
     setLists([newList, ...lists]);
     setActiveListId(newList.id);
@@ -117,6 +122,27 @@ function AppContent() {
       }
       deleteListRemote(id);
     }
+  };
+
+  const handleLeaveList = async (id: string) => {
+    if (!confirm("Выйти из списка?")) return;
+    try {
+      await leaveList(id);
+      setLists((prev) => prev.filter((l) => l.id !== id));
+      if (activeListId === id) {
+        setActiveListId(null);
+      }
+    } catch {
+      // Error already logged in useSync
+    }
+  };
+
+  const handleUpdateListMembers = (id: string, members: number[]) => {
+    const list = lists.find((l) => l.id === id);
+    if (!list) return;
+    const updated = { ...list, members, updatedAt: Date.now() };
+    setLists((prev) => prev.map((l) => (l.id === id ? updated : l)));
+    pushList(updated);
   };
 
   const renameList = (id: string, newTitle: string) => {
@@ -254,6 +280,11 @@ function AppContent() {
           onAddItem={handleAddItem}
           onDeleteItem={handleDeleteItem}
           onUpdateItem={handleUpdateItem}
+          onShare={
+            user && activeList.ownerId === user.userId
+              ? () => setShareListId(activeListId)
+              : undefined
+          }
         />
       ) : (
         <HomeView
@@ -261,7 +292,9 @@ function AppContent() {
           onCreateList={createList}
           onSelectList={setActiveListId}
           onDeleteList={deleteList}
+          onLeaveList={handleLeaveList}
           onRenameList={renameList}
+          onOpenShare={setShareListId}
           onClearLists={() => {
             setLists([]);
             setActiveListId(null);
@@ -269,6 +302,14 @@ function AppContent() {
           onReorderLists={reorderLists}
         />
       )}
+
+      <ShareListModal
+        list={
+          shareListId ? lists.find((l) => l.id === shareListId) ?? null : null
+        }
+        onClose={() => setShareListId(null)}
+        onUpdateMembers={(id, members) => handleUpdateListMembers(id, members)}
+      />
 
       <InstallPrompt />
     </div>
