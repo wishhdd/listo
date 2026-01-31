@@ -9,6 +9,7 @@ import { useLocalStorage } from "./hooks/useLocalStorage";
 import { useSync } from "./hooks/useSync";
 import { type TodoItem, type TodoList } from "./types";
 import { generateId } from "./utils/generateId";
+import { mergeItemsByNewer } from "./utils/mergeItemsByNewer";
 import { getRandomColor } from "./utils/theme";
 
 const initialData: TodoList[] = [];
@@ -35,7 +36,11 @@ function AppContent() {
       if (!currentList) return;
       const syncedItems = await syncItems(listId, currentList.items);
       setLists((prev) =>
-        prev.map((l) => (l.id === listId ? { ...l, items: syncedItems } : l))
+        prev.map((l) =>
+          l.id === listId
+            ? { ...l, items: mergeItemsByNewer(l.items, syncedItems) }
+            : l
+        )
       );
     } else {
       const syncedLists = await syncLists(lists);
@@ -45,7 +50,23 @@ function AppContent() {
           return { ...list, items: realItems };
         })
       );
-      setLists(fullyLoadedLists);
+      setLists((prev) => {
+        const listIdsInPrev = new Set(prev.map((l) => l.id));
+        const merged = prev.map((prevList) => {
+          const syncedList = fullyLoadedLists.find(
+            (s) => s.id === prevList.id
+          );
+          if (!syncedList) return prevList;
+          return {
+            ...syncedList,
+            items: mergeItemsByNewer(prevList.items, syncedList.items),
+          };
+        });
+        const onlyOnServer = fullyLoadedLists.filter(
+          (s) => !listIdsInPrev.has(s.id)
+        );
+        return [...merged, ...onlyOnServer];
+      });
     }
   };
 
