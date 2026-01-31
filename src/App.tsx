@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { api } from "./api/client";
 import { InstallPrompt } from "./components/pwa/InstallPrompt";
+import { InviteModal } from "./components/home/InviteModal";
 import { ShareListModal } from "./components/home/ShareListModal";
 import HomeView from "./components/views/HomeView";
 import SingleListView from "./components/views/SingleListView";
@@ -8,7 +10,12 @@ import { useAuth } from "./hooks/useAuth";
 import { useAutoSync } from "./hooks/useAutoSync";
 import { useLocalStorage } from "./hooks/useLocalStorage";
 import { useSync } from "./hooks/useSync";
-import { type TodoItem, type TodoList } from "./types";
+import {
+  type InviteDeclineReason,
+  type ListInvite,
+  type TodoItem,
+  type TodoList,
+} from "./types";
 import { generateId } from "./utils/generateId";
 import { mergeItemsByNewer } from "./utils/mergeItemsByNewer";
 import { getRandomColor } from "./utils/theme";
@@ -20,6 +27,8 @@ function AppContent() {
   const [lists, setLists] = useLocalStorage<TodoList[]>("listo", initialData);
   const [activeListId, setActiveListId] = useState<string | null>(null);
   const [shareListId, setShareListId] = useState<string | null>(null);
+  const [invites, setInvites] = useState<ListInvite[]>([]);
+  const [showInviteModal, setShowInviteModal] = useState(false);
 
   const {
     syncLists,
@@ -31,47 +40,50 @@ function AppContent() {
     leaveList,
   } = useSync();
 
-  const handleSync = async (listId?: string) => {
-    if (!user) return;
+  const handleSync = useCallback(
+    async (listId?: string) => {
+      if (!user) return;
 
-    if (listId) {
-      const currentList = lists.find((l) => l.id === listId);
-      if (!currentList) return;
-      const syncedItems = await syncItems(listId, currentList.items);
-      setLists((prev) =>
-        prev.map((l) =>
-          l.id === listId
-            ? { ...l, items: mergeItemsByNewer(l.items, syncedItems) }
-            : l
-        )
-      );
-    } else {
-      const syncedLists = await syncLists(lists);
-      const fullyLoadedLists = await Promise.all(
-        syncedLists.map(async (list) => {
-          const realItems = await syncItems(list.id, list.items);
-          return { ...list, items: realItems };
-        })
-      );
-      setLists((prev) => {
-        const listIdsInPrev = new Set(prev.map((l) => l.id));
-        const merged = prev.map((prevList) => {
-          const syncedList = fullyLoadedLists.find(
-            (s) => s.id === prevList.id
-          );
-          if (!syncedList) return prevList;
-          return {
-            ...syncedList,
-            items: mergeItemsByNewer(prevList.items, syncedList.items),
-          };
-        });
-        const onlyOnServer = fullyLoadedLists.filter(
-          (s) => !listIdsInPrev.has(s.id)
+      if (listId) {
+        const currentList = lists.find((l) => l.id === listId);
+        if (!currentList) return;
+        const syncedItems = await syncItems(listId, currentList.items);
+        setLists((prev) =>
+          prev.map((l) =>
+            l.id === listId
+              ? { ...l, items: mergeItemsByNewer(l.items, syncedItems) }
+              : l
+          )
         );
-        return [...merged, ...onlyOnServer];
-      });
-    }
-  };
+      } else {
+        const syncedLists = await syncLists(lists);
+        const fullyLoadedLists = await Promise.all(
+          syncedLists.map(async (list) => {
+            const realItems = await syncItems(list.id, list.items);
+            return { ...list, items: realItems };
+          })
+        );
+        setLists((prev) => {
+          const listIdsInPrev = new Set(prev.map((l) => l.id));
+          const merged = prev.map((prevList) => {
+            const syncedList = fullyLoadedLists.find(
+              (s) => s.id === prevList.id
+            );
+            if (!syncedList) return prevList;
+            return {
+              ...syncedList,
+              items: mergeItemsByNewer(prevList.items, syncedList.items),
+            };
+          });
+          const onlyOnServer = fullyLoadedLists.filter(
+            (s) => !listIdsInPrev.has(s.id)
+          );
+          return [...merged, ...onlyOnServer];
+        });
+      }
+    },
+    [user, lists, syncLists, syncItems, setLists]
+  );
 
   useAutoSync(activeListId, handleSync);
 
@@ -79,7 +91,49 @@ function AppContent() {
     if (user) {
       handleSync();
     }
-  }, [user]);
+  }, [user, handleSync]);
+
+  useEffect(() => {
+    if (!user || activeListId !== null) return;
+    let cancelled = false;
+    api
+      .get<ListInvite[]>("/api/listo/invites")
+      .then((data) => {
+        if (!cancelled) {
+          setInvites(data);
+          if (data.length > 0) setShowInviteModal(true);
+        }
+      })
+      .catch((e) => console.error("Fetch invites error:", e));
+    return () => {
+      cancelled = true;
+    };
+  }, [user, activeListId]);
+
+  const handleInviteAccept = useCallback(
+    async (inviteId: number) => {
+      await api.post(`/api/listo/invites/${inviteId}/accept`, {});
+      setInvites((prev) => {
+        const next = prev.filter((i) => i.inviteId !== inviteId);
+        setShowInviteModal(next.length > 0);
+        return next;
+      });
+      await handleSync();
+    },
+    [handleSync]
+  );
+
+  const handleInviteDecline = useCallback(
+    async (inviteId: number, reason: InviteDeclineReason) => {
+      await api.post(`/api/listo/invites/${inviteId}/decline`, { reason });
+      setInvites((prev) => {
+        const next = prev.filter((i) => i.inviteId !== inviteId);
+        setShowInviteModal(next.length > 0);
+        return next;
+      });
+    },
+    []
+  );
 
   const activeList = useMemo(
     () => lists.find((l) => l.id === activeListId),
@@ -310,6 +364,16 @@ function AppContent() {
         onClose={() => setShareListId(null)}
         onUpdateMembers={(id, members) => handleUpdateListMembers(id, members)}
       />
+
+      {showInviteModal && invites[0] && (
+        <InviteModal
+          invite={invites[0]}
+          onClose={() => setShowInviteModal(false)}
+          onAccept={handleInviteAccept}
+          onDecline={handleInviteDecline}
+          onRemindLater={() => setShowInviteModal(false)}
+        />
+      )}
 
       <InstallPrompt />
     </div>

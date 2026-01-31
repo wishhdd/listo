@@ -44,3 +44,13 @@ export interface ServerTodoItem {
   position: number;
   updated_at: number | string;
 }
+
+export interface ListInvite {
+  inviteId: number;
+  listId: string;
+  listTitle: string;
+  sharerId: number;
+  sharerName: string;
+}
+
+export type InviteDeclineReason = "this_time" | "forever_list" | "block_user";
