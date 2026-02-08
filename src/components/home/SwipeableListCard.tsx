@@ -27,29 +27,66 @@ export function SwipeableListCard({
   isDragging,
 }: SwipeableListCardProps) {
   const [offset, setOffset] = useState(0);
-  const [isSwipeActive, setIsSwipeActive] = useState(false);
+  const offsetRef = useRef(0);
   const startX = useRef<number | null>(null);
-  const [prevList, setPrevList] = useState(list);
+  const startY = useRef<number | null>(null);
+  const gestureIsHorizontalRef = useRef<boolean | null>(null);
+  const scrollWinsRef = useRef(false);
+  const touchInProgressRef = useRef(false);
   const dragHandleRef = useRef<HTMLDivElement | null>(null);
   const isDraggingFromHandle = useRef(false);
-  const [hasHover, setHasHover] = useState(false);
+  const isDraggingRef = useRef(isDragging);
+  const slidingRef = useRef<HTMLDivElement | null>(null);
+  const [hasHover, setHasHover] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(hover: hover)").matches
+  );
+
+  useEffect(() => {
+    isDraggingRef.current = isDragging;
+  }, [isDragging]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(hover: hover)");
-    setHasHover(mediaQuery.matches);
-    
     const handleChange = (e: MediaQueryListEvent) => {
       setHasHover(e.matches);
     };
-    
     mediaQuery.addEventListener("change", handleChange);
     return () => mediaQuery.removeEventListener("change", handleChange);
   }, []);
 
-  if (list !== prevList) {
-    setPrevList(list);
-    setOffset(0);
-  }
+  useEffect(() => {
+    const el = slidingRef.current;
+    if (!el) return;
+    const onTouchMove = (e: TouchEvent) => {
+      if (isDraggingRef.current || isDraggingFromHandle.current || startX.current === null || startY.current === null) return;
+      const deltaX = e.touches[0].clientX - startX.current;
+      const deltaY = e.touches[0].clientY - startY.current;
+      if (gestureIsHorizontalRef.current === null) {
+        const threshold = 10;
+        if (Math.abs(deltaX) >= threshold || Math.abs(deltaY) >= threshold) {
+          gestureIsHorizontalRef.current = Math.abs(deltaX) > Math.abs(deltaY);
+          if (!gestureIsHorizontalRef.current) scrollWinsRef.current = true;
+        }
+      }
+      if (gestureIsHorizontalRef.current === true) {
+        if (Math.abs(deltaX) >= 10) e.preventDefault();
+      }
+    };
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    return () => el.removeEventListener("touchmove", onTouchMove);
+  }, []);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      if (!touchInProgressRef.current) {
+        setOffset(0);
+        offsetRef.current = 0;
+        if (slidingRef.current) {
+          slidingRef.current.style.transform = "translateX(0px)";
+        }
+      }
+    });
+  }, [list.id]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     if (isDragging) {
@@ -65,30 +102,52 @@ export function SwipeableListCard({
     
     isDraggingFromHandle.current = false;
     startX.current = e.touches[0].clientX;
+    startY.current = e.touches[0].clientY;
+    gestureIsHorizontalRef.current = null;
+    scrollWinsRef.current = false;
+    offsetRef.current = offset;
+    touchInProgressRef.current = true;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (isDragging || isDraggingFromHandle.current || !startX.current) return;
+    if (isDragging || isDraggingFromHandle.current || !startX.current || scrollWinsRef.current) return;
     const currentX = e.touches[0].clientX;
     const diff = currentX - startX.current;
     if (Math.abs(diff) < 10) return;
-    setIsSwipeActive(true);
-    if (diff > -120 && diff < 120) {
-      setOffset(diff);
+    e.preventDefault();
+    const value = Math.max(-120, Math.min(120, diff));
+    offsetRef.current = value;
+    if (slidingRef.current) {
+      slidingRef.current.style.transform = `translateX(${value}px)`;
     }
   };
 
   const handleTouchEnd = () => {
     if (isDragging || isDraggingFromHandle.current) {
       isDraggingFromHandle.current = false;
+      touchInProgressRef.current = false;
       return;
     }
     if (!startX.current) return;
-    setIsSwipeActive(false);
-    if (offset < -50) setOffset(-80);
-    else if (offset > 50) setOffset(80);
-    else setOffset(0);
+    touchInProgressRef.current = false;
+    gestureIsHorizontalRef.current = null;
+    scrollWinsRef.current = false;
+    startY.current = null;
+    const current = offsetRef.current;
+    const snap = current < -50 ? -80 : current > 50 ? 80 : 0;
+    setOffset(snap);
+    if (slidingRef.current) {
+      slidingRef.current.style.transform = `translateX(${snap}px)`;
+    }
     startX.current = null;
+  };
+
+  const handleTouchCancel = () => {
+    touchInProgressRef.current = false;
+    gestureIsHorizontalRef.current = null;
+    scrollWinsRef.current = false;
+    startX.current = null;
+    startY.current = null;
   };
 
   const showLeaveSwipe = !isOwner || (list.members && list.members.length > 0);
@@ -98,51 +157,52 @@ export function SwipeableListCard({
       <div className="absolute inset-0 rounded-2xl flex justify-between items-center overflow-hidden">
         {isOwner ? (
           <>
-            <div
+            <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 onRename();
                 setOffset(0);
               }}
-              className={`w-1/2 h-full bg-blue-500 flex items-center justify-start pl-6 transition-opacity cursor-pointer ${
-                offset > 0 ? "opacity-100" : "opacity-0"
-              }`}
+              aria-label="Редактировать список"
+              className="w-1/2 h-full bg-blue-500 flex items-center justify-start pl-6 cursor-pointer border-0 appearance-none"
             >
               <Edit2 className="text-white" size={24} />
-            </div>
-            <div
+            </button>
+            <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 onDelete();
               }}
-              className={`w-1/2 h-full bg-red-500 flex items-center justify-end pr-6 transition-opacity cursor-pointer ${
-                offset < 0 ? "opacity-100" : "opacity-0"
-              }`}
+              aria-label="Удалить список"
+              className="w-1/2 h-full bg-red-500 flex items-center justify-end pr-6 cursor-pointer border-0 appearance-none"
             >
               <Trash2 className="text-white" size={24} />
-            </div>
+            </button>
           </>
         ) : (
-          <div
+          <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               onLeave?.();
               setOffset(0);
             }}
-            className={`w-1/2 h-full bg-amber-500 flex items-center justify-end pr-6 gap-2 transition-opacity cursor-pointer ${
-              offset < 0 ? "opacity-100" : "opacity-0"
-            }`}
+            aria-label="Выйти из списка"
+            className="w-1/2 h-full bg-amber-500 flex items-center justify-end pr-6 gap-2 cursor-pointer border-0 appearance-none"
           >
             <LogOut className="text-white" size={24} />
             <span className="text-white font-medium">Выйти</span>
-          </div>
+          </button>
         )}
       </div>
 
       <div
-        className={`relative z-10 h-full bg-white p-5 rounded-2xl shadow-lg border-slate-100 active:scale-[0.98] cursor-pointer flex items-center justify-between touch-pan-y overflow-hidden ${
-          !isSwipeActive ? "transition-transform duration-200 ease-out" : ""
-        } ${isDragging ? "ring-2 ring-blue-500 shadow-xl" : ""} ${hasHover ? "group" : ""}`}
+        ref={slidingRef}
+        className={`relative z-10 h-full bg-white p-5 rounded-2xl shadow-lg border-slate-100 active:scale-[0.98] transition-transform duration-200 ease-out cursor-pointer flex items-center justify-between touch-pan-y overflow-hidden ${
+          isDragging ? "ring-2 ring-blue-500 shadow-xl" : ""
+        } ${hasHover ? "group" : ""}`}
         style={{ transform: `translateX(${offset}px)` }}
         onClick={() => {
           if (offset === 0) onSelect();
@@ -151,10 +211,7 @@ export function SwipeableListCard({
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        onTouchCancel={() => {
-          setIsSwipeActive(false);
-          startX.current = null;
-        }}
+        onTouchCancel={handleTouchCancel}
       >
         <div
           className={`absolute left-0 top-0 bottom-0 w-2 rounded-l-2xl ${list.themeColor}`}
