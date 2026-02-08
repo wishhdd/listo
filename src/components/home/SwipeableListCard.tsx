@@ -70,6 +70,7 @@ export function SwipeableListCard({
     if (isDragging || isDraggingFromHandle.current || !startX.current) return;
     const currentX = e.touches[0].clientX;
     const diff = currentX - startX.current;
+    if (Math.abs(diff) < 10) return;
     if (diff > -120 && diff < 120) {
       setOffset(diff);
     }
