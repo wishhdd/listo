@@ -27,6 +27,7 @@ export function SwipeableListCard({
   isDragging,
 }: SwipeableListCardProps) {
   const [offset, setOffset] = useState(0);
+  const [isSwipeActive, setIsSwipeActive] = useState(false);
   const startX = useRef<number | null>(null);
   const [prevList, setPrevList] = useState(list);
   const dragHandleRef = useRef<HTMLDivElement | null>(null);
@@ -71,6 +72,7 @@ export function SwipeableListCard({
     const currentX = e.touches[0].clientX;
     const diff = currentX - startX.current;
     if (Math.abs(diff) < 10) return;
+    setIsSwipeActive(true);
     if (diff > -120 && diff < 120) {
       setOffset(diff);
     }
@@ -82,6 +84,7 @@ export function SwipeableListCard({
       return;
     }
     if (!startX.current) return;
+    setIsSwipeActive(false);
     if (offset < -50) setOffset(-80);
     else if (offset > 50) setOffset(80);
     else setOffset(0);
@@ -137,9 +140,9 @@ export function SwipeableListCard({
       </div>
 
       <div
-        className={`relative z-10 h-full bg-white p-5 rounded-2xl shadow-lg border-slate-100 active:scale-[0.98] transition-transform duration-200 ease-out cursor-pointer flex items-center justify-between touch-pan-y overflow-hidden ${
-          isDragging ? "ring-2 ring-blue-500 shadow-xl" : ""
-        } ${hasHover ? "group" : ""}`}
+        className={`relative z-10 h-full bg-white p-5 rounded-2xl shadow-lg border-slate-100 active:scale-[0.98] cursor-pointer flex items-center justify-between touch-pan-y overflow-hidden ${
+          !isSwipeActive ? "transition-transform duration-200 ease-out" : ""
+        } ${isDragging ? "ring-2 ring-blue-500 shadow-xl" : ""} ${hasHover ? "group" : ""}`}
         style={{ transform: `translateX(${offset}px)` }}
         onClick={() => {
           if (offset === 0) onSelect();
@@ -148,6 +151,10 @@ export function SwipeableListCard({
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onTouchCancel={() => {
+          setIsSwipeActive(false);
+          startX.current = null;
+        }}
       >
         <div
           className={`absolute left-0 top-0 bottom-0 w-2 rounded-l-2xl ${list.themeColor}`}
