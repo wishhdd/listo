@@ -8,6 +8,7 @@ import { Github, LogOut, Plus, ShoppingBag, User } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import type { TodoList } from "../../types";
+import { sortListsByPosition } from "../../utils/sortListsByPosition";
 import { AuthModal } from "../auth/AuthModal";
 import { LogoutConfirmModal } from "../auth/LogoutConfirmModal";
 import { EditListForm } from "../home/EditListForm";
@@ -62,17 +63,12 @@ export default function HomeView({
   }, [isCreating]);
 
   useEffect(() => {
+    if (!isLogoutConfirmOpen) return;
     const handleBeforeUnload = () => {
-      if (isLogoutConfirmOpen) {
-        localStorage.removeItem("listo");
-      }
+      localStorage.removeItem("listo");
     };
-
     window.addEventListener("beforeunload", handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-    };
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isLogoutConfirmOpen]);
 
   const handleRename = (id: string, title: string) => {
@@ -102,13 +98,7 @@ export default function HomeView({
     await logout();
   };
 
-  const sortedLists = useMemo(() => {
-    return [...lists].sort((a, b) => {
-      const posA = a.position ?? a.createdAt;
-      const posB = b.position ?? b.createdAt;
-      return posA - posB;
-    });
-  }, [lists]);
+  const sortedLists = useMemo(() => sortListsByPosition(lists), [lists]);
 
 
   const handleDragEnd = (result: DropResult) => {
@@ -145,6 +135,7 @@ export default function HomeView({
                   : "text-blue-500 hover:text-blue-700"
               }`}
               title={user ? `Выйти (${user.userName})` : "Войти"}
+              aria-label={user ? "Выйти из аккаунта" : "Войти в аккаунт"}
             >
               {user ? <LogOut size={28} /> : <User size={28} />}
             </button>
@@ -283,6 +274,7 @@ export default function HomeView({
           <button
             onClick={() => setIsCreating(true)}
             className="w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg flex items-center justify-center transition-transform active:scale-90 pointer-events-auto"
+            aria-label="Создать список"
           >
             <Plus size={28} />
           </button>

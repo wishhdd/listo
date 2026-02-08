@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { api } from "./api/client";
+import { useEffect, useRef, useState } from "react";
+import { Routes, Route, useParams, useNavigate } from "react-router-dom";
+import { ConfirmModal } from "./components/auth/ConfirmModal";
 import { InstallPrompt } from "./components/pwa/InstallPrompt";
 import { InviteModal } from "./components/home/InviteModal";
 import { ShareListModal } from "./components/home/ShareListModal";
@@ -8,82 +9,61 @@ import SingleListView from "./components/views/SingleListView";
 import { AuthProvider } from "./context/AuthContext";
 import { useAuth } from "./hooks/useAuth";
 import { useAutoSync } from "./hooks/useAutoSync";
-import { useLocalStorage } from "./hooks/useLocalStorage";
-import { useSync } from "./hooks/useSync";
-import {
-  type InviteDeclineReason,
-  type ListInvite,
-  type TodoItem,
-  type TodoList,
-} from "./types";
-import { generateId } from "./utils/generateId";
-import { mergeItemsByNewer } from "./utils/mergeItemsByNewer";
-import { getRandomColor } from "./utils/theme";
+import { useInvites } from "./hooks/useInvites";
+import { useLists } from "./hooks/useLists";
+import { setOnError, setOnUnauthorized } from "./utils/notify";
 
-const initialData: TodoList[] = [];
+type ConfirmState =
+  | { type: "deleteList"; id: string }
+  | { type: "leaveList"; id: string }
+  | { type: "clearCompleted" }
+  | null;
 
 function AppContent() {
-  const { user } = useAuth();
-  const [lists, setLists] = useLocalStorage<TodoList[]>("listo", initialData);
-  const [activeListId, setActiveListId] = useState<string | null>(null);
+  const { user, logout } = useAuth();
+  const { id: listIdFromUrl } = useParams<{ id?: string }>();
+  const navigate = useNavigate();
   const [shareListId, setShareListId] = useState<string | null>(null);
-  const [invites, setInvites] = useState<ListInvite[]>([]);
-  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [confirmState, setConfirmState] = useState<ConfirmState>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setOnUnauthorized(() => logout());
+    setOnError((msg) => {
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+      setToastMessage(msg);
+      toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 3000);
+    });
+    return () => {
+      setOnUnauthorized(null);
+      setOnError(() => {});
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    };
+  }, [logout]);
 
   const {
-    syncLists,
-    syncItems,
-    pushItem,
-    deleteItemRemote,
-    pushList,
-    deleteListRemote,
-    leaveList,
-  } = useSync();
+    lists,
+    activeListId,
+    setActiveListId,
+    activeList,
+    handleSync,
+    createList,
+    deleteList,
+    handleLeaveList,
+    handleUpdateListMembers,
+    renameList,
+    reorderLists,
+    handleAddItem,
+    handleDeleteItem,
+    handleUpdateItem,
+    handleClearCompleted,
+    clearLists,
+  } = useLists();
 
-  const handleSync = useCallback(
-    async (listId?: string) => {
-      if (!user) return;
-
-      if (listId) {
-        const currentList = lists.find((l) => l.id === listId);
-        if (!currentList) return;
-        const syncedItems = await syncItems(listId, currentList.items);
-        setLists((prev) =>
-          prev.map((l) =>
-            l.id === listId
-              ? { ...l, items: mergeItemsByNewer(l.items, syncedItems) }
-              : l
-          )
-        );
-      } else {
-        const syncedLists = await syncLists(lists);
-        const fullyLoadedLists = await Promise.all(
-          syncedLists.map(async (list) => {
-            const realItems = await syncItems(list.id, list.items);
-            return { ...list, items: realItems };
-          })
-        );
-        setLists((prev) => {
-          const listIdsInPrev = new Set(prev.map((l) => l.id));
-          const merged = prev.map((prevList) => {
-            const syncedList = fullyLoadedLists.find(
-              (s) => s.id === prevList.id
-            );
-            if (!syncedList) return prevList;
-            return {
-              ...syncedList,
-              items: mergeItemsByNewer(prevList.items, syncedList.items),
-            };
-          });
-          const onlyOnServer = fullyLoadedLists.filter(
-            (s) => !listIdsInPrev.has(s.id)
-          );
-          return [...merged, ...onlyOnServer];
-        });
-      }
-    },
-    [user, lists, syncLists, syncItems, setLists]
-  );
+  useEffect(() => {
+    setActiveListId(listIdFromUrl ?? null);
+  }, [listIdFromUrl, setActiveListId]);
 
   useAutoSync(activeListId, handleSync);
 
@@ -93,235 +73,56 @@ function AppContent() {
     }
   }, [user, handleSync]);
 
-  useEffect(() => {
-    if (!user || activeListId !== null) return;
-    let cancelled = false;
-    api
-      .get<ListInvite[]>("/api/listo/invites")
-      .then((data) => {
-        if (!cancelled) {
-          setInvites(data);
-          if (data.length > 0) setShowInviteModal(true);
-        }
-      })
-      .catch((e) => console.error("Fetch invites error:", e));
-    return () => {
-      cancelled = true;
-    };
-  }, [user, activeListId]);
+  const {
+    invites,
+    showInviteModal,
+    setShowInviteModal,
+    handleInviteAccept,
+    handleInviteDecline,
+  } = useInvites(user, activeListId, handleSync);
 
-  const handleInviteAccept = useCallback(
-    async (inviteId: number) => {
-      await api.post(`/api/listo/invites/${inviteId}/accept`, {});
-      setInvites((prev) => {
-        const next = prev.filter((i) => i.inviteId !== inviteId);
-        setShowInviteModal(next.length > 0);
-        return next;
-      });
-      await handleSync();
-    },
-    [handleSync]
-  );
-
-  const handleInviteDecline = useCallback(
-    async (inviteId: number, reason: InviteDeclineReason) => {
-      await api.post(`/api/listo/invites/${inviteId}/decline`, { reason });
-      setInvites((prev) => {
-        const next = prev.filter((i) => i.inviteId !== inviteId);
-        setShowInviteModal(next.length > 0);
-        return next;
-      });
-    },
-    []
-  );
-
-  const activeList = useMemo(
-    () => lists.find((l) => l.id === activeListId),
-    [lists, activeListId]
-  );
-
-  const createList = (title: string) => {
-    const sortedLists = [...lists].sort((a, b) => {
-      const posA = a.position ?? a.createdAt;
-      const posB = b.position ?? b.createdAt;
-      return posA - posB;
-    });
-
-    const firstList = sortedLists[0];
-    const firstPos = firstList
-      ? firstList.position ?? firstList.createdAt
-      : Date.now();
-
-    const newList: TodoList = {
-      id: generateId(),
-      title,
-      items: [],
-      themeColor: getRandomColor(),
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      position: firstPos - 1024,
-      ownerId: user?.userId,
-      members: user ? [] : undefined,
-    };
-    setLists([newList, ...lists]);
-    setActiveListId(newList.id);
-    pushList(newList);
+  const handleDeleteListWithConfirm = (id: string) => {
+    setConfirmState({ type: "deleteList", id });
   };
 
-  const deleteList = (id: string) => {
-    if (confirm("Удалить этот список?")) {
-      setLists(lists.filter((l) => l.id !== id));
-      if (activeListId === id) {
-        setActiveListId(null);
-      }
-      deleteListRemote(id);
+  const handleLeaveListWithConfirm = (id: string) => {
+    setConfirmState({ type: "leaveList", id });
+  };
+
+  const handleSelectList = (id: string) => {
+    setActiveListId(id);
+    navigate(`/list/${id}`);
+  };
+
+  const handleBackFromList = () => {
+    setActiveListId(null);
+    navigate("/");
+  };
+
+  const handleConfirmModalConfirm = () => {
+    if (!confirmState) return;
+    if (confirmState.type === "deleteList") {
+      deleteList(confirmState.id);
+      navigate("/");
+    } else if (confirmState.type === "leaveList") {
+      void handleLeaveList(confirmState.id).then(() => navigate("/"));
+    } else if (confirmState.type === "clearCompleted") {
+      handleClearCompleted();
     }
+    setConfirmState(null);
   };
 
-  const handleLeaveList = async (id: string) => {
-    if (!confirm("Выйти из списка?")) return;
-    try {
-      await leaveList(id);
-      setLists((prev) => prev.filter((l) => l.id !== id));
-      if (activeListId === id) {
-        setActiveListId(null);
-      }
-    } catch {
-      // Error already logged in useSync
-    }
-  };
-
-  const handleUpdateListMembers = (id: string, members: number[]) => {
-    const list = lists.find((l) => l.id === id);
-    if (!list) return;
-    const updated = { ...list, members, updatedAt: Date.now() };
-    setLists((prev) => prev.map((l) => (l.id === id ? updated : l)));
-    pushList(updated);
-  };
-
-  const renameList = (id: string, newTitle: string) => {
-    const updatedList = lists.find((l) => l.id === id);
-    if (!updatedList) return;
-
-    const newList = { ...updatedList, title: newTitle, updatedAt: Date.now() };
-    setLists(lists.map((list) => (list.id === id ? newList : list)));
-    pushList(newList);
-  };
-
-  const reorderLists = (sourceIndex: number, destinationIndex: number) => {
-    const sortedLists = [...lists].sort((a, b) => {
-      const posA = a.position ?? a.createdAt;
-      const posB = b.position ?? b.createdAt;
-      return posA - posB;
-    });
-
-    const reorderedList = Array.from(sortedLists);
-    const [removed] = reorderedList.splice(sourceIndex, 1);
-    reorderedList.splice(destinationIndex, 0, removed);
-
-    let newPosition = 0;
-
-    if (destinationIndex === 0) {
-      const first = reorderedList[1];
-      newPosition = (first?.position ?? first?.createdAt ?? 0) - 1024;
-    } else if (destinationIndex === reorderedList.length - 1) {
-      const last = reorderedList[destinationIndex - 1];
-      newPosition = (last?.position ?? last?.createdAt ?? 0) + 1024;
-    } else {
-      const prev = reorderedList[destinationIndex - 1];
-      const next = reorderedList[destinationIndex + 1];
-      const prevPos = prev?.position ?? prev?.createdAt ?? 0;
-      const nextPos = next?.position ?? next?.createdAt ?? 0;
-      newPosition = (prevPos + nextPos) / 2;
-    }
-
-    const updatedList = {
-      ...removed,
-      position: newPosition,
-      updatedAt: Date.now(),
-    };
-
-    setLists(
-      lists.map((list) => (list.id === removed.id ? updatedList : list))
-    );
-    pushList(updatedList);
-  };
-
-  const handleAddItem = (text: string) => {
-    if (!activeListId) return;
-
-    const currentItems = lists.find((l) => l.id === activeListId)?.items || [];
-    const minPosition =
-      currentItems.length > 0
-        ? Math.min(...currentItems.map((i) => i.position))
-        : 0;
-
-    const newItem: TodoItem = {
-      id: generateId(),
-      text,
-      completed: false,
-      position: minPosition - 1024,
-      updatedAt: Date.now(),
-    };
-
-    setLists((prev) =>
-      prev.map((list) => {
-        if (list.id !== activeListId) return list;
-        return {
-          ...list,
-          items: [newItem, ...list.items],
-          updatedAt: Date.now(),
-        };
-      })
-    );
-
-    pushItem(activeListId, newItem);
-  };
-
-  const handleDeleteItem = (itemId: string) => {
-    if (!activeListId) return;
-    setLists((prev) =>
-      prev.map((list) => {
-        if (list.id !== activeListId) return list;
-        return {
-          ...list,
-          items: list.items.filter((i) => i.id !== itemId),
-          updatedAt: Date.now(),
-        };
-      })
-    );
-    deleteItemRemote(itemId);
-  };
-
-  const handleUpdateItem = (itemId: string, updates: Partial<TodoItem>) => {
-    if (!activeListId) return;
-
-    const currentList = lists.find((l) => l.id === activeListId);
-    if (!currentList) return;
-
-    const itemToUpdate = currentList.items.find((i) => i.id === itemId);
-    if (!itemToUpdate) return;
-
-    const updatedItemFull: TodoItem = {
-      ...itemToUpdate,
-      ...updates,
-      updatedAt: Date.now(),
-    };
-
-    setLists((prev) =>
-      prev.map((list) => {
-        if (list.id !== activeListId) {
-          return list;
-        }
-        const newItems = list.items.map((item) => {
-          if (item.id !== itemId) return item;
-          return updatedItemFull;
-        });
-        return { ...list, items: newItems, updatedAt: Date.now() };
-      })
-    );
-    pushItem(activeListId, updatedItemFull);
-  };
+  const confirmModalConfig =
+    confirmState?.type === "deleteList"
+      ? { title: "Удалить список?", message: "Удалить этот список?" }
+      : confirmState?.type === "leaveList"
+        ? { title: "Выйти из списка?", message: "Выйти из списка?" }
+        : confirmState?.type === "clearCompleted"
+          ? {
+              title: "Очистить завершённые",
+              message: "Удалить все завершенные товары?",
+            }
+          : null;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-safe overflow-hidden touch-pan-y">
@@ -330,10 +131,11 @@ function AppContent() {
       {activeListId && activeList ? (
         <SingleListView
           list={activeList}
-          onBack={() => setActiveListId(null)}
+          onBack={handleBackFromList}
           onAddItem={handleAddItem}
           onDeleteItem={handleDeleteItem}
           onUpdateItem={handleUpdateItem}
+          onRequestClearCompleted={() => setConfirmState({ type: "clearCompleted" })}
           onShare={
             user && activeList.ownerId === user.userId
               ? () => setShareListId(activeListId)
@@ -344,15 +146,12 @@ function AppContent() {
         <HomeView
           lists={lists}
           onCreateList={createList}
-          onSelectList={setActiveListId}
-          onDeleteList={deleteList}
-          onLeaveList={handleLeaveList}
+          onSelectList={handleSelectList}
+          onDeleteList={handleDeleteListWithConfirm}
+          onLeaveList={handleLeaveListWithConfirm}
           onRenameList={renameList}
           onOpenShare={setShareListId}
-          onClearLists={() => {
-            setLists([]);
-            setActiveListId(null);
-          }}
+          onClearLists={clearLists}
           onReorderLists={reorderLists}
         />
       )}
@@ -362,7 +161,7 @@ function AppContent() {
           shareListId ? lists.find((l) => l.id === shareListId) ?? null : null
         }
         onClose={() => setShareListId(null)}
-        onUpdateMembers={(id, members) => handleUpdateListMembers(id, members)}
+        onUpdateMembers={handleUpdateListMembers}
       />
 
       {showInviteModal && invites[0] && (
@@ -375,6 +174,27 @@ function AppContent() {
         />
       )}
 
+      {confirmState && confirmModalConfig && (
+        <ConfirmModal
+          isOpen
+          title={confirmModalConfig.title}
+          message={confirmModalConfig.message}
+          confirmLabel="Да"
+          cancelLabel="Отмена"
+          onConfirm={handleConfirmModalConfirm}
+          onCancel={() => setConfirmState(null)}
+        />
+      )}
+
+      {toastMessage && (
+        <div
+          className="fixed bottom-6 left-4 right-4 max-w-md mx-auto bg-slate-800 text-white py-3 px-4 rounded-xl shadow-lg z-[110] animate-in fade-in slide-in-from-bottom-2 duration-200"
+          role="alert"
+        >
+          {toastMessage}
+        </div>
+      )}
+
       <InstallPrompt />
     </div>
   );
@@ -383,7 +203,10 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <Routes>
+        <Route path="/" element={<AppContent />} />
+        <Route path="/list/:id" element={<AppContent />} />
+      </Routes>
     </AuthProvider>
   );
 }

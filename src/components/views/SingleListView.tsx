@@ -18,6 +18,7 @@ interface SingleListViewProps {
   onAddItem: (text: string) => void;
   onDeleteItem: (itemId: string) => void;
   onUpdateItem: (itemId: string, updates: Partial<TodoItem>) => void;
+  onRequestClearCompleted?: () => void;
   onShare?: () => void;
 }
 
@@ -27,6 +28,7 @@ export default function SingleListView({
   onAddItem,
   onDeleteItem,
   onUpdateItem,
+  onRequestClearCompleted,
   onShare,
 }: SingleListViewProps) {
   const [inputValue, setInputValue] = useState("");
@@ -82,7 +84,9 @@ export default function SingleListView({
   };
 
   const handleClearCompleted = () => {
-    if (confirm("Удалить все завершенные товары?")) {
+    if (onRequestClearCompleted) {
+      onRequestClearCompleted();
+    } else {
       completedItems.forEach((item) => onDeleteItem(item.id));
     }
   };
@@ -106,8 +110,6 @@ export default function SingleListView({
       const first = sortedActiveItems[0];
       const firstPos = first ? first.position || 0 : 0;
       const newPosition = firstPos - 1024;
-
-      console.log(`Drop to TOP: ${newPosition}`);
       onUpdateItem(movedItem.id, { position: newPosition });
       return;
     }
@@ -116,8 +118,6 @@ export default function SingleListView({
       const last = sortedActiveItems[sortedActiveItems.length - 1];
       const lastPos = last ? last.position || 0 : 0;
       const newPosition = lastPos + 1024;
-
-      console.log(`Drop to BOTTOM: ${newPosition}`);
       onUpdateItem(movedItem.id, { position: newPosition });
       return;
     }

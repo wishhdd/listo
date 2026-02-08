@@ -111,6 +111,7 @@ export function ShareListModal({
                 disabled={loading || !loginInput.trim()}
                 className="flex-shrink-0 p-2 bg-blue-600 text-white rounded-xl disabled:opacity-50 transition-opacity"
                 title="Добавить по логину"
+                aria-label="Добавить участника по логину"
               >
                 <Search size={20} />
               </button>
@@ -140,6 +141,7 @@ export function ShareListModal({
                       onClick={() => handleRemoveMember(memberId)}
                       className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                       title="Убрать из списка"
+                      aria-label="Убрать участника из списка"
                     >
                       <UserMinus size={18} />
                     </button>

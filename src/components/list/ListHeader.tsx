@@ -1,5 +1,5 @@
 import { ChevronLeft, Share2, Trash2 } from "lucide-react";
-import React, { type RefObject } from "react";
+import type { RefObject } from "react";
 import { AddItemInput } from "./AddItemInput";
 
 interface ListHeaderProps {
@@ -37,6 +37,7 @@ export function ListHeader({
         <button
           onClick={onBack}
           className="p-2 -ml-2 shrink-0 text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+          aria-label="Назад к спискам"
         >
           <ChevronLeft size={24} />
         </button>
@@ -48,6 +49,7 @@ export function ListHeader({
             onClick={onShare}
             className="p-2 shrink-0 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors mr-1"
             title="Поделиться"
+            aria-label="Поделиться списком"
           >
             <Share2 size={20} />
           </button>
@@ -57,6 +59,7 @@ export function ListHeader({
           disabled={completedCount === 0}
           className="p-2 -mr-2 shrink-0 text-slate-400 hover:text-red-500 disabled:opacity-30 transition-colors rounded-full"
           title="Удалить завершённые"
+          aria-label="Удалить все завершённые товары"
         >
           <Trash2 size={20} />
         </button>

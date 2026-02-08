@@ -143,6 +143,7 @@ export function SwipeableItem({
               ? "text-slate-400"
               : "text-slate-300 hover:text-blue-500"
           }`}
+          aria-label={item.completed ? "Отметить как не купленное" : "Отметить как купленное"}
         >
           {item.completed ? (
             <CheckCircle2 size={24} className="text-slate-400" />
@@ -188,6 +189,7 @@ export function SwipeableItem({
             }}
             className="p-2 text-slate-300 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
             title="Редактировать"
+            aria-label="Редактировать пункт"
           >
             <Edit2 size={18} />
           </button>
@@ -198,6 +200,7 @@ export function SwipeableItem({
             }}
             className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
             title="Удалить"
+            aria-label="Удалить пункт"
           >
             <Trash2 size={18} />
           </button>

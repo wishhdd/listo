@@ -21,6 +21,7 @@ export function InstallPrompt() {
         <button
           onClick={() => setIsVisible(false)}
           className="absolute right-2 top-2 p-1 text-slate-300 hover:text-slate-500 rounded-full"
+          aria-label="Закрыть"
         >
           <X size={20} />
         </button>

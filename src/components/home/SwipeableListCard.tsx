@@ -185,6 +185,7 @@ export function SwipeableListCard({
                   hasHover ? "hover:text-blue-500 hover:bg-blue-50" : ""
                 }`}
                 title="Редактировать"
+                aria-label="Переименовать список"
               >
                 <Edit2 size={18} />
               </button>
@@ -198,6 +199,7 @@ export function SwipeableListCard({
                     hasHover ? "hover:text-blue-500 hover:bg-blue-50" : ""
                   }`}
                   title="Поделиться"
+                  aria-label="Поделиться списком"
                 >
                   <Share2 size={18} />
                 </button>
@@ -246,6 +248,7 @@ export function SwipeableListCard({
                     hasHover ? "hover:text-amber-600 hover:bg-amber-50" : ""
                   }`}
                   title="Выйти из списка"
+                  aria-label="Выйти из списка"
                 >
                   <LogOut size={18} />
                 </button>
@@ -259,6 +262,7 @@ export function SwipeableListCard({
                   hasHover ? "hover:text-red-500 hover:bg-red-50" : ""
                 }`}
                 title="Удалить"
+                aria-label="Удалить список"
               >
                 <Trash2 size={18} />
               </button>
@@ -274,6 +278,7 @@ export function SwipeableListCard({
                   hasHover ? "hover:text-amber-600 hover:bg-amber-50" : ""
                 }`}
                 title="Выйти из списка"
+                aria-label="Выйти из списка"
               >
                 <LogOut size={18} />
               </button>

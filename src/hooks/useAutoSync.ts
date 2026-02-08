@@ -1,8 +1,10 @@
 import { useEffect, useRef } from "react";
 
+export const AUTO_SYNC_INTERVAL_MS = 15_000;
+
 export function useAutoSync(
   activeListId: string | null,
-  syncFunction: (listId?: string) => void
+  syncFunction: (listId?: string) => void | Promise<void>
 ) {
   const syncRef = useRef(syncFunction);
 
@@ -12,18 +14,18 @@ export function useAutoSync(
 
   useEffect(() => {
     if (activeListId) {
-      syncRef.current(activeListId);
+      void syncRef.current(activeListId);
     } else {
-      syncRef.current();
+      void syncRef.current();
     }
   }, [activeListId]);
 
   useEffect(() => {
     const intervalId = setInterval(() => {
       if (navigator.onLine) {
-        syncRef.current(activeListId || undefined);
+        void syncRef.current(activeListId || undefined);
       }
-    }, 15000);
+    }, AUTO_SYNC_INTERVAL_MS);
 
     return () => {
       clearInterval(intervalId);

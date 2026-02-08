@@ -1,3 +1,5 @@
+import { notifyError, notifyUnauthorized } from "../utils/notify";
+
 const BASE_URL = import.meta.env.VITE_API_URL || "";
 
 interface ApiError {
@@ -27,6 +29,7 @@ async function request<T>(
     const response = await fetch(url, config);
 
     if (response.status === 401) {
+      notifyUnauthorized();
       throw new Error("UNAUTHORIZED");
     }
     const data = await response.json();
@@ -39,11 +42,10 @@ async function request<T>(
     }
     return data as T;
   } catch (error: unknown) {
-    if (error instanceof Error) {
-      if (error.message === "UNAUTHORIZED") {
-        throw error;
-      }
+    if (error instanceof Error && error.message === "UNAUTHORIZED") {
+      throw error;
     }
+    notifyError("Не удалось сохранить. Проверьте интернет.");
     console.error(`API Error (${url}):`, error);
     throw error;
   }

@@ -54,6 +54,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         <button
           onClick={onClose}
           className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"
+          aria-label="Закрыть"
         >
           <X size={24} />
         </button>
