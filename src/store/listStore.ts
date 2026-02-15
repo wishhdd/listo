@@ -31,7 +31,7 @@ export interface ListState {
     updates: Partial<TodoItem>,
   ) => void;
   deleteItem: (listId: string, itemId: string) => void;
-  updateListMembers: (listId: string, members: number[]) => void;
+  updateListMembers: (listId: string, members: number[]) => void | Promise<void>;
   leaveList: (listId: string) => Promise<void>;
   clearCompleted: (listId: string) => void;
   clearLists: () => void;
@@ -277,25 +277,33 @@ export const useListStore = create<ListState>()(
         }
       },
 
-      updateListMembers: (listId: string, members: number[]) => {
+      updateListMembers: async (listId: string, members: number[]) => {
         const { lists } = get();
         const list = lists.find((l) => l.id === listId);
         if (!list) return;
+        const prevMembers = list.members ?? [];
         const updated = { ...list, members, updatedAt: Date.now() };
         set({
           lists: lists.map((l) => (l.id === listId ? updated : l)),
         });
         const user = useAuthStore.getState().user;
-        if (user) {
-          api
-            .post("/api/listo", {
-              id: updated.id,
-              title: updated.title,
-              owner_id: updated.ownerId,
-              members: updated.members ?? [],
-              updated_at: updated.updatedAt,
-            })
-            .catch((e) => console.error(e));
+        if (!user) return;
+        try {
+          await api.post("/api/listo", {
+            id: updated.id,
+            title: updated.title,
+            owner_id: updated.ownerId,
+            members: updated.members ?? [],
+            updated_at: updated.updatedAt,
+          });
+        } catch (e) {
+          console.error(e);
+          set((s) => ({
+            lists: s.lists.map((l) =>
+              l.id === listId ? { ...l, members: prevMembers } : l
+            ),
+          }));
+          useUIStore.getState().actions.showToast("Не удалось обновить участников", "error");
         }
       },
 

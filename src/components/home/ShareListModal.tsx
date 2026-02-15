@@ -1,5 +1,5 @@
 import { Search, UserMinus, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../api/client";
 import type { TodoList } from "../../types";
 import { useAuthStore } from "../../store/authStore";
@@ -15,6 +15,14 @@ interface SearchUserResult {
   userName: string;
 }
 
+interface UserInfoResult {
+  userId: number;
+  userName?: string | null;
+  login?: string | null;
+  nickname?: string | null;
+  display_name?: string | null;
+}
+
 export function ShareListModal({
   list,
   onClose,
@@ -24,6 +32,44 @@ export function ShareListModal({
   const [loginInput, setLoginInput] = useState("");
   const [searchError, setSearchError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [memberDisplayNames, setMemberDisplayNames] = useState<
+    Record<number, string>
+  >({});
+
+  useEffect(() => {
+    if (!list?.members?.length) {
+      setMemberDisplayNames({});
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      const next: Record<number, string> = {};
+      await Promise.all(
+        list.members!.map(async (memberId) => {
+          if (cancelled) return;
+          try {
+            const res = await api.get<UserInfoResult>(
+              `/api/users/${memberId}`
+            );
+            const name =
+              res.userName?.trim() ||
+              res.nickname?.trim() ||
+              res.display_name?.trim() ||
+              res.login?.trim() ||
+              `ID: ${memberId}`;
+            if (!cancelled) next[memberId] = name;
+          } catch {
+            if (!cancelled) next[memberId] = `ID: ${memberId}`;
+          }
+        })
+      );
+      if (!cancelled) setMemberDisplayNames((prev) => ({ ...prev, ...next }));
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [list?.id, list?.members?.join(",")]);
 
   if (!list) return null;
 
@@ -49,6 +95,10 @@ export function ShareListModal({
         return;
       }
       onUpdateMembers(list.id, [...members, res.userId]);
+      setMemberDisplayNames((prev) => ({
+        ...prev,
+        [res.userId]: res.userName || `ID: ${res.userId}`,
+      }));
       setLoginInput("");
     } catch (err) {
       setSearchError(
@@ -132,7 +182,7 @@ export function ShareListModal({
                   className="flex items-center justify-between py-2 px-3 bg-slate-50 rounded-xl"
                 >
                   <span className="text-slate-700">
-                    ID: {memberId}
+                    {memberDisplayNames[memberId] ?? `ID: ${memberId}`}
                     {memberId === user?.userId && " (вы)"}
                   </span>
                   {isOwner && memberId !== user?.userId && (
