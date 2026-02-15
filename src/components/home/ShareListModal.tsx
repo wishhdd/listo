@@ -1,4 +1,4 @@
-import { Search, UserMinus, X } from "lucide-react";
+import { Search, UserMinus, UserPlus, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../api/client";
 import type { TodoList } from "../../types";
@@ -31,6 +31,7 @@ export function ShareListModal({
   const user = useAuthStore((s) => s.user);
   const [loginInput, setLoginInput] = useState("");
   const [searchError, setSearchError] = useState("");
+  const [searchResult, setSearchResult] = useState<SearchUserResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [memberDisplayNames, setMemberDisplayNames] = useState<
     Record<number, string>
@@ -81,11 +82,13 @@ export function ShareListModal({
     const login = loginInput.trim();
     if (!login) return;
     setSearchError("");
+    setSearchResult(null);
     setLoading(true);
     try {
       const res = await api.get<SearchUserResult>(
         `/api/users/search?login=${encodeURIComponent(login)}`
       );
+      setSearchResult(res);
       if (res.userId === user?.userId) {
         setSearchError("Нельзя добавить себя");
         return;
@@ -94,19 +97,27 @@ export function ShareListModal({
         setSearchError("Уже в списке участников");
         return;
       }
-      onUpdateMembers(list.id, [...members, res.userId]);
-      setMemberDisplayNames((prev) => ({
-        ...prev,
-        [res.userId]: res.userName || `ID: ${res.userId}`,
-      }));
-      setLoginInput("");
     } catch (err) {
       setSearchError(
         err instanceof Error ? err.message : "Пользователь не найден"
       );
+      setSearchResult(null);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAddFoundUser = () => {
+    if (!searchResult) return;
+    if (searchResult.userId === user?.userId || members.includes(searchResult.userId)) return;
+    onUpdateMembers(list.id, [...members, searchResult.userId]);
+    setMemberDisplayNames((prev) => ({
+      ...prev,
+      [searchResult.userId]: searchResult.userName || `ID: ${searchResult.userId}`,
+    }));
+    setSearchResult(null);
+    setLoginInput("");
+    setSearchError("");
   };
 
   const handleRemoveMember = (memberId: number) => {
@@ -151,6 +162,7 @@ export function ShareListModal({
                 onChange={(e) => {
                   setLoginInput(e.target.value);
                   setSearchError("");
+                  setSearchResult(null);
                 }}
                 placeholder="Логин пользователя"
                 className="flex-1 min-w-0 px-3 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -160,12 +172,34 @@ export function ShareListModal({
                 type="submit"
                 disabled={loading || !loginInput.trim()}
                 className="flex-shrink-0 p-2 bg-blue-600 text-white rounded-xl disabled:opacity-50 transition-opacity"
-                title="Добавить по логину"
-                aria-label="Добавить участника по логину"
+                title="Поиск"
+                aria-label="Найти пользователя по логину"
               >
                 <Search size={20} />
               </button>
             </form>
+          )}
+
+          {searchResult && (
+            <div className="flex items-center justify-between gap-2 py-2 px-3 bg-slate-100 rounded-xl mb-2">
+              <span className="text-slate-700 truncate">
+                {searchResult.userName || `ID: ${searchResult.userId}`}
+              </span>
+              <button
+                type="button"
+                onClick={handleAddFoundUser}
+                disabled={
+                  searchResult.userId === user?.userId ||
+                  members.includes(searchResult.userId)
+                }
+                className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-xl disabled:opacity-50 transition-opacity text-sm font-medium"
+                title="Добавить в список"
+                aria-label="Добавить участника в список"
+              >
+                <UserPlus size={16} />
+                Добавить
+              </button>
+            </div>
           )}
 
           {searchError && (
