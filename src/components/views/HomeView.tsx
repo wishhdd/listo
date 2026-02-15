@@ -6,51 +6,52 @@ import {
 } from "@hello-pangea/dnd";
 import { Github, LogOut, Plus, ShoppingBag, User } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useAuth } from "../../hooks/useAuth";
-import type { TodoList } from "../../types";
+import { useNavigate } from "react-router-dom";
+import { useShallow } from "zustand/react/shallow";
+import { useAuthStore } from "../../store/authStore";
+import { useListStore } from "../../store/listStore";
+import { useUIStore } from "../../store/uiStore";
 import { sortListsByPosition } from "../../utils/sortListsByPosition";
 import { AuthModal } from "../auth/AuthModal";
 import { LogoutConfirmModal } from "../auth/LogoutConfirmModal";
 import { EditListForm } from "../home/EditListForm";
 import { SwipeableListCard } from "../home/SwipeableListCard";
 
-interface HomeViewProps {
-  lists: TodoList[];
-  onCreateList: (title: string) => void;
-  onSelectList: (id: string) => void;
-  onDeleteList: (id: string) => void;
-  onLeaveList?: (id: string) => void;
-  onRenameList?: (id: string, newTitle: string) => void;
-  onOpenShare?: (listId: string) => void;
-  onClearLists: () => void;
-  onReorderLists: (sourceIndex: number, destinationIndex: number) => void;
-}
-
-export default function HomeView({
-  lists,
-  onCreateList,
-  onSelectList,
-  onDeleteList,
-  onLeaveList,
-  onRenameList,
-  onOpenShare,
-  onClearLists,
-  onReorderLists,
-}: HomeViewProps) {
+export default function HomeView() {
+  const navigate = useNavigate();
   const [isCreating, setIsCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [editingListId, setEditingListId] = useState<string | null>(null);
-
-  const { user, logout } = useAuth();
   const [isAuthModalOpen, setAuthModalOpen] = useState(false);
   const [isLogoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
-
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const { user, logout } = useAuthStore(
+    useShallow((s) => ({ user: s.user, logout: s.logout }))
+  );
+
+  const { lists, createList, renameList, reorderLists, clearLists } =
+    useListStore(
+      useShallow((s) => ({
+        lists: s.lists,
+        createList: s.createList,
+        renameList: s.renameList,
+        reorderLists: s.reorderLists,
+        clearLists: s.clearLists,
+      }))
+    );
+
+  const { openConfirm, setShareListId } = useUIStore(
+    useShallow((s) => ({
+      openConfirm: s.actions.openConfirm,
+      setShareListId: s.actions.setShareListId,
+    }))
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (newTitle.trim()) {
-      onCreateList(newTitle.trim());
+      createList(newTitle.trim());
       setNewTitle("");
       setIsCreating(false);
     }
@@ -72,8 +73,8 @@ export default function HomeView({
   }, [isLogoutConfirmOpen]);
 
   const handleRename = (id: string, title: string) => {
-    if (onRenameList && title.trim()) {
-      onRenameList(id, title.trim());
+    if (title.trim()) {
+      renameList(id, title.trim());
     }
     setEditingListId(null);
   };
@@ -94,26 +95,37 @@ export default function HomeView({
   const handleLogoutCancel = async () => {
     setLogoutConfirmOpen(false);
     localStorage.removeItem("listo");
-    onClearLists();
+    clearLists();
     await logout();
   };
 
-  const sortedLists = useMemo(() => sortListsByPosition(lists), [lists]);
+  const sortedLists = useMemo(
+    () => sortListsByPosition(lists),
+    [lists]
+  );
 
+  const handleSelectList = (id: string) => {
+    navigate(`/list/${id}`);
+  };
+
+  const handleDeleteListWithConfirm = (id: string) => {
+    openConfirm("DELETE_LIST", { listId: id });
+  };
+
+  const handleLeaveListWithConfirm = (id: string) => {
+    openConfirm("LEAVE_LIST", { listId: id });
+  };
 
   const handleDragEnd = (result: DropResult) => {
     const { destination, source } = result;
-
     if (!destination) return;
-
     if (
       destination.droppableId === source.droppableId &&
       destination.index === source.index
     ) {
       return;
     }
-
-    onReorderLists(source.index, destination.index);
+    reorderLists(source.index, destination.index);
   };
 
   return (
@@ -211,19 +223,18 @@ export default function HomeView({
                           >
                             <SwipeableListCard
                               list={list}
-                              onSelect={() => onSelectList(list.id)}
-                              onDelete={() => onDeleteList(list.id)}
+                              onSelect={() => handleSelectList(list.id)}
+                              onDelete={() => handleDeleteListWithConfirm(list.id)}
                               onRename={() => setEditingListId(list.id)}
                               onLeave={
-                                onLeaveList
-                                  ? () => onLeaveList(list.id)
+                                user && list.ownerId !== user.userId
+                                  ? () => handleLeaveListWithConfirm(list.id)
                                   : undefined
                               }
                               onShare={
                                 user &&
-                                list.ownerId === user.userId &&
-                                onOpenShare
-                                  ? () => onOpenShare(list.id)
+                                list.ownerId === user.userId
+                                  ? () => setShareListId(list.id)
                                   : undefined
                               }
                               isOwner={
@@ -291,7 +302,6 @@ export default function HomeView({
         onConfirm={handleLogoutConfirm}
         onCancel={handleLogoutCancel}
       />
-
     </div>
   );
 }

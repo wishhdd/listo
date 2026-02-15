@@ -1,180 +1,121 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Routes, Route, useParams, useNavigate } from "react-router-dom";
+import { setupInterceptors } from "./api/client";
 import { ConfirmModal } from "./components/auth/ConfirmModal";
-import { InstallPrompt } from "./components/pwa/InstallPrompt";
 import { InviteModal } from "./components/home/InviteModal";
+import { InviteFetcher } from "./components/home/InviteFetcher";
 import { ShareListModal } from "./components/home/ShareListModal";
+import { MainLayout } from "./components/layout/MainLayout";
+import { SyncManager } from "./components/sync/SyncManager";
 import HomeView from "./components/views/HomeView";
 import SingleListView from "./components/views/SingleListView";
-import { AuthProvider } from "./context/AuthContext";
-import { useAuth } from "./hooks/useAuth";
-import { useAutoSync } from "./hooks/useAutoSync";
-import { useInvites } from "./hooks/useInvites";
-import { useLists } from "./hooks/useLists";
-import { setOnError, setOnUnauthorized } from "./utils/notify";
-
-type ConfirmState =
-  | { type: "deleteList"; id: string }
-  | { type: "leaveList"; id: string }
-  | { type: "clearCompleted" }
-  | null;
+import type { AuthState } from "./store/authStore";
+import type { ListState } from "./store/listStore";
+import type { UIState } from "./store/uiStore";
+import { useAuthStore } from "./store/authStore";
+import { useListStore } from "./store/listStore";
+import { useUIStore } from "./store/uiStore";
+import type { TodoList } from "./types";
+import { setOnError } from "./utils/notify";
 
 function AppContent() {
-  const { user, logout } = useAuth();
-  const { id: listIdFromUrl } = useParams<{ id?: string }>();
   const navigate = useNavigate();
-  const [shareListId, setShareListId] = useState<string | null>(null);
-  const [confirmState, setConfirmState] = useState<ConfirmState>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const { id: listIdFromUrl } = useParams<{ id?: string }>();
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const confirmModal = useUIStore((s: UIState) => s.confirmModal);
+  const shareListId = useUIStore((s: UIState) => s.shareListId);
+  const toast = useUIStore((s: UIState) => s.toast);
+  const inviteModal = useUIStore((s: UIState) => s.inviteModal);
+  const uiActions = useUIStore((s: UIState) => s.actions);
+
+  const lists = useListStore((s: ListState) => s.lists);
+  const deleteList = useListStore((s: ListState) => s.deleteList);
+  const leaveList = useListStore((s: ListState) => s.leaveList);
+  const clearCompleted = useListStore((s: ListState) => s.clearCompleted);
+  const updateListMembers = useListStore((s: ListState) => s.updateListMembers);
+  const acceptInvite = useListStore((s: ListState) => s.acceptInvite);
+
   useEffect(() => {
-    setOnUnauthorized(() => logout());
     setOnError((msg) => {
       if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-      setToastMessage(msg);
-      toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 3000);
+      uiActions.showToast(msg, "error");
+      toastTimeoutRef.current = setTimeout(() => {
+        uiActions.clearToast();
+        toastTimeoutRef.current = null;
+      }, 3000);
     });
     return () => {
-      setOnUnauthorized(null);
       setOnError(() => {});
       if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     };
-  }, [logout]);
-
-  const {
-    lists,
-    activeListId,
-    setActiveListId,
-    activeList,
-    handleSync,
-    createList,
-    deleteList,
-    handleLeaveList,
-    handleUpdateListMembers,
-    renameList,
-    reorderLists,
-    handleAddItem,
-    handleDeleteItem,
-    handleUpdateItem,
-    handleClearCompleted,
-    clearLists,
-  } = useLists();
-
-  useEffect(() => {
-    setActiveListId(listIdFromUrl ?? null);
-  }, [listIdFromUrl, setActiveListId]);
-
-  useAutoSync(activeListId, handleSync);
-
-  useEffect(() => {
-    if (user) {
-      handleSync();
-    }
-  }, [user, handleSync]);
-
-  const {
-    invites,
-    showInviteModal,
-    setShowInviteModal,
-    handleInviteAccept,
-    handleInviteDecline,
-  } = useInvites(user, activeListId, handleSync);
-
-  const handleDeleteListWithConfirm = (id: string) => {
-    setConfirmState({ type: "deleteList", id });
-  };
-
-  const handleLeaveListWithConfirm = (id: string) => {
-    setConfirmState({ type: "leaveList", id });
-  };
-
-  const handleSelectList = (id: string) => {
-    setActiveListId(id);
-    navigate(`/list/${id}`);
-  };
-
-  const handleBackFromList = () => {
-    setActiveListId(null);
-    navigate("/");
-  };
+  }, [uiActions]);
 
   const handleConfirmModalConfirm = () => {
-    if (!confirmState) return;
-    if (confirmState.type === "deleteList") {
-      deleteList(confirmState.id);
+    if (!confirmModal.isOpen || !confirmModal.type) return;
+    if (
+      confirmModal.type === "DELETE_LIST" &&
+      "listId" in confirmModal.payload
+    ) {
+      deleteList(confirmModal.payload.listId);
       navigate("/");
-    } else if (confirmState.type === "leaveList") {
-      void handleLeaveList(confirmState.id).then(() => navigate("/"));
-    } else if (confirmState.type === "clearCompleted") {
-      handleClearCompleted();
+    } else if (
+      confirmModal.type === "LEAVE_LIST" &&
+      "listId" in confirmModal.payload
+    ) {
+      void leaveList(confirmModal.payload.listId).then(() => navigate("/"));
+    } else if (confirmModal.type === "CLEAR_COMPLETED") {
+      if (listIdFromUrl) clearCompleted(listIdFromUrl);
     }
-    setConfirmState(null);
+    uiActions.closeConfirm();
   };
 
   const confirmModalConfig =
-    confirmState?.type === "deleteList"
+    confirmModal.type === "DELETE_LIST"
       ? { title: "Удалить список?", message: "Удалить этот список?" }
-      : confirmState?.type === "leaveList"
+      : confirmModal.type === "LEAVE_LIST"
         ? { title: "Выйти из списка?", message: "Выйти из списка?" }
-        : confirmState?.type === "clearCompleted"
+        : confirmModal.type === "CLEAR_COMPLETED"
           ? {
               title: "Очистить завершённые",
               message: "Удалить все завершенные товары?",
             }
           : null;
 
-  return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-safe overflow-hidden touch-pan-y">
-      <div className="h-1 w-full bg-slate-50 sticky top-0 z-50"></div>
+  const shareList = shareListId
+    ? (lists.find((l: TodoList) => l.id === shareListId) ?? null)
+    : null;
 
-      {activeListId && activeList ? (
-        <SingleListView
-          list={activeList}
-          onBack={handleBackFromList}
-          onAddItem={handleAddItem}
-          onDeleteItem={handleDeleteItem}
-          onUpdateItem={handleUpdateItem}
-          onRequestClearCompleted={() => setConfirmState({ type: "clearCompleted" })}
-          onShare={
-            user && activeList.ownerId === user.userId
-              ? () => setShareListId(activeListId)
-              : undefined
-          }
-        />
-      ) : (
-        <HomeView
-          lists={lists}
-          onCreateList={createList}
-          onSelectList={handleSelectList}
-          onDeleteList={handleDeleteListWithConfirm}
-          onLeaveList={handleLeaveListWithConfirm}
-          onRenameList={renameList}
-          onOpenShare={setShareListId}
-          onClearLists={clearLists}
-          onReorderLists={reorderLists}
-        />
-      )}
+  return (
+    <>
+      <SyncManager />
+      <InviteFetcher />
+
+      {listIdFromUrl ? <SingleListView /> : <HomeView />}
 
       <ShareListModal
-        list={
-          shareListId ? lists.find((l) => l.id === shareListId) ?? null : null
-        }
-        onClose={() => setShareListId(null)}
-        onUpdateMembers={handleUpdateListMembers}
+        list={shareList}
+        onClose={() => uiActions.setShareListId(null)}
+        onUpdateMembers={updateListMembers}
       />
 
-      {showInviteModal && invites[0] && (
+      {inviteModal.isOpen && inviteModal.invite && (
         <InviteModal
-          invite={invites[0]}
-          onClose={() => setShowInviteModal(false)}
-          onAccept={handleInviteAccept}
-          onDecline={handleInviteDecline}
-          onRemindLater={() => setShowInviteModal(false)}
+          invite={inviteModal.invite}
+          onClose={uiActions.closeInviteModal}
+          onAccept={acceptInvite}
+          onDecline={async (inviteId, reason) => {
+            const { api } = await import("./api/client");
+            await api.post(`/api/listo/invites/${inviteId}/decline`, {
+              reason,
+            });
+            uiActions.closeInviteModal();
+          }}
+          onRemindLater={uiActions.closeInviteModal}
         />
       )}
 
-      {confirmState && confirmModalConfig && (
+      {confirmModal.isOpen && confirmModalConfig && (
         <ConfirmModal
           isOpen
           title={confirmModalConfig.title}
@@ -182,31 +123,38 @@ function AppContent() {
           confirmLabel="Да"
           cancelLabel="Отмена"
           onConfirm={handleConfirmModalConfirm}
-          onCancel={() => setConfirmState(null)}
+          onCancel={uiActions.closeConfirm}
         />
       )}
 
-      {toastMessage && (
+      {toast && (
         <div
           className="fixed bottom-6 left-4 right-4 max-w-md mx-auto bg-slate-800 text-white py-3 px-4 rounded-xl shadow-lg z-[110] animate-in fade-in slide-in-from-bottom-2 duration-200"
           role="alert"
         >
-          {toastMessage}
+          {toast.msg}
         </div>
       )}
-
-      <InstallPrompt />
-    </div>
+    </>
   );
 }
 
 export default function App() {
+  const checkAuth = useAuthStore((s: AuthState) => s.checkAuth);
+
+  useEffect(() => {
+    checkAuth();
+    setupInterceptors(() => {
+      useAuthStore.getState().logout();
+    });
+  }, [checkAuth]);
+
   return (
-    <AuthProvider>
-      <Routes>
+    <Routes>
+      <Route element={<MainLayout />}>
         <Route path="/" element={<AppContent />} />
         <Route path="/list/:id" element={<AppContent />} />
-      </Routes>
-    </AuthProvider>
+      </Route>
+    </Routes>
   );
 }

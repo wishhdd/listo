@@ -2,7 +2,7 @@ import { Search, UserMinus, X } from "lucide-react";
 import { useState } from "react";
 import { api } from "../../api/client";
 import type { TodoList } from "../../types";
-import { useAuth } from "../../hooks/useAuth";
+import { useAuthStore } from "../../store/authStore";
 
 interface ShareListModalProps {
   list: TodoList | null;
@@ -20,7 +20,7 @@ export function ShareListModal({
   onClose,
   onUpdateMembers,
 }: ShareListModalProps) {
-  const { user } = useAuth();
+  const user = useAuthStore((s) => s.user);
   const [loginInput, setLoginInput] = useState("");
   const [searchError, setSearchError] = useState("");
   const [loading, setLoading] = useState(false);

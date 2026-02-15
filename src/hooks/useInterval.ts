@@ -1,0 +1,21 @@
+import { useEffect, useRef } from "react";
+
+/**
+ * Runs callback at a fixed interval. Cleans up on unmount.
+ */
+export function useInterval(
+  callback: () => void,
+  delayMs: number | null
+): void {
+  const savedCallback = useRef(callback);
+
+  useEffect(() => {
+    savedCallback.current = callback;
+  }, [callback]);
+
+  useEffect(() => {
+    if (delayMs === null) return;
+    const id = setInterval(() => savedCallback.current(), delayMs);
+    return () => clearInterval(id);
+  }, [delayMs]);
+}

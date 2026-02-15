@@ -69,7 +69,14 @@ export function SwipeableListCard({
         }
       }
       if (gestureIsHorizontalRef.current === true) {
-        if (Math.abs(deltaX) >= 10) e.preventDefault();
+        if (Math.abs(deltaX) >= 10) {
+          e.preventDefault();
+          const value = Math.max(-120, Math.min(120, deltaX));
+          offsetRef.current = value;
+          if (slidingRef.current) {
+            slidingRef.current.style.transform = `translateX(${value}px)`;
+          }
+        }
       }
     };
     el.addEventListener("touchmove", onTouchMove, { passive: false });
@@ -107,19 +114,6 @@ export function SwipeableListCard({
     scrollWinsRef.current = false;
     offsetRef.current = offset;
     touchInProgressRef.current = true;
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (isDragging || isDraggingFromHandle.current || !startX.current || scrollWinsRef.current) return;
-    const currentX = e.touches[0].clientX;
-    const diff = currentX - startX.current;
-    if (Math.abs(diff) < 10) return;
-    e.preventDefault();
-    const value = Math.max(-120, Math.min(120, diff));
-    offsetRef.current = value;
-    if (slidingRef.current) {
-      slidingRef.current.style.transform = `translateX(${value}px)`;
-    }
   };
 
   const handleTouchEnd = () => {
@@ -209,7 +203,6 @@ export function SwipeableListCard({
           else setOffset(0);
         }}
         onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onTouchCancel={handleTouchCancel}
       >

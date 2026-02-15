@@ -1,6 +1,12 @@
-import { notifyError, notifyUnauthorized } from "../utils/notify";
+import { notifyError } from "../utils/notify";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "";
+
+let onUnauthorized: (() => void) | null = null;
+
+export function setupInterceptors(callback: () => void): void {
+  onUnauthorized = callback;
+}
 
 interface ApiError {
   message: string;
@@ -29,7 +35,7 @@ async function request<T>(
     const response = await fetch(url, config);
 
     if (response.status === 401) {
-      notifyUnauthorized();
+      onUnauthorized?.();
       throw new Error("UNAUTHORIZED");
     }
     const data = await response.json();

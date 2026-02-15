@@ -5,41 +5,53 @@ import {
   type DropResult,
 } from "@hello-pangea/dnd";
 import { useMemo, useRef, useState } from "react";
-
+import { useParams, useNavigate } from "react-router-dom";
 import { useBackNavigation } from "../../hooks/useBackNavigation";
-import type { TodoItem, TodoList } from "../../types";
+import type { TodoItem } from "../../types";
+import type { AuthState } from "../../store/authStore";
+import type { ListState } from "../../store/listStore";
+import type { UIState } from "../../store/uiStore";
+import { useShallow } from "zustand/react/shallow";
+import { useAuthStore } from "../../store/authStore";
+import { useListStore } from "../../store/listStore";
+import { useUIStore } from "../../store/uiStore";
 import { EditItemForm } from "../list/EditItemForm";
 import { ListHeader } from "../list/ListHeader";
 import { SwipeableItem } from "../list/SwipeableItem";
 
-interface SingleListViewProps {
-  list: TodoList;
-  onBack: () => void;
-  onAddItem: (text: string) => void;
-  onDeleteItem: (itemId: string) => void;
-  onUpdateItem: (itemId: string, updates: Partial<TodoItem>) => void;
-  onRequestClearCompleted?: () => void;
-  onShare?: () => void;
-}
-
-export default function SingleListView({
-  list,
-  onBack,
-  onAddItem,
-  onDeleteItem,
-  onUpdateItem,
-  onRequestClearCompleted,
-  onShare,
-}: SingleListViewProps) {
+export default function SingleListView() {
+  const { id: listId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [inputValue, setInputValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
-  const handleUiBack = useBackNavigation(onBack);
+  const list = useListStore((s: ListState) =>
+    listId ? s.lists.find((l) => l.id === listId) ?? null : null
+  );
+
+  const user = useAuthStore((s: AuthState) => s.user);
+  const { addItem, deleteItem, updateItem } = useListStore(
+    useShallow((s: ListState) => ({
+      addItem: s.addItem,
+      deleteItem: s.deleteItem,
+      updateItem: s.updateItem,
+    }))
+  );
+
+  const { openConfirm, setShareListId } = useUIStore(
+    useShallow((s: UIState) => ({
+      openConfirm: s.actions.openConfirm,
+      setShareListId: s.actions.setShareListId,
+    }))
+  );
+
+  const handleBack = () => navigate("/");
+  const handleUiBack = useBackNavigation(handleBack);
 
   const activeItems = useMemo(
-    () => list.items.filter((i) => !i.completed),
-    [list.items]
+    () => (list?.items ?? []).filter((i: TodoItem) => !i.completed),
+    [list?.items]
   );
 
   const sortedActiveItems = useMemo(
@@ -48,14 +60,22 @@ export default function SingleListView({
     [activeItems]
   );
 
-  const completedItems = list.items.filter((i) => i.completed);
+  if (!listId || !list) {
+    return (
+      <div className="max-w-7xl mx-auto min-h-screen flex flex-col items-center justify-center text-slate-500">
+        Список не найден
+      </div>
+    );
+  }
+
+  const completedItems = list.items.filter((i: TodoItem) => i.completed);
 
   const displayActive = sortedActiveItems.filter(
-    (i) =>
+    (i: TodoItem) =>
       !inputValue || i.text.toLowerCase().includes(inputValue.toLowerCase())
   );
   const displayCompleted = completedItems.filter(
-    (i) =>
+    (i: TodoItem) =>
       !inputValue || i.text.toLowerCase().includes(inputValue.toLowerCase())
   );
 
@@ -66,30 +86,31 @@ export default function SingleListView({
   const onFormSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (inputValue.trim()) {
-      onAddItem(inputValue.trim());
+      addItem(listId, inputValue.trim());
       setInputValue("");
       inputRef.current?.focus();
     }
   };
 
   const handleToggleItem = (item: TodoItem) => {
-    onUpdateItem(item.id, { completed: !item.completed });
+    updateItem(listId, item.id, { completed: !item.completed });
   };
 
   const handleRenameItem = (itemId: string, newText: string) => {
     if (newText.trim()) {
-      onUpdateItem(itemId, { text: newText.trim() });
+      updateItem(listId, itemId, { text: newText.trim() });
     }
     setEditingItemId(null);
   };
 
   const handleClearCompleted = () => {
-    if (onRequestClearCompleted) {
-      onRequestClearCompleted();
-    } else {
-      completedItems.forEach((item) => onDeleteItem(item.id));
-    }
+    openConfirm("CLEAR_COMPLETED", {});
   };
+
+  const handleShare =
+    user && list.ownerId === user.userId
+      ? () => setShareListId(listId)
+      : undefined;
 
   const handleDragEnd = (result: DropResult) => {
     const { destination, source, draggableId } = result;
@@ -109,16 +130,14 @@ export default function SingleListView({
     if (destination.droppableId === "zone-top") {
       const first = sortedActiveItems[0];
       const firstPos = first ? first.position || 0 : 0;
-      const newPosition = firstPos - 1024;
-      onUpdateItem(movedItem.id, { position: newPosition });
+      updateItem(listId, movedItem.id, { position: firstPos - 1024 });
       return;
     }
 
     if (destination.droppableId === "zone-bottom") {
       const last = sortedActiveItems[sortedActiveItems.length - 1];
       const lastPos = last ? last.position || 0 : 0;
-      const newPosition = lastPos + 1024;
-      onUpdateItem(movedItem.id, { position: newPosition });
+      updateItem(listId, movedItem.id, { position: lastPos + 1024 });
       return;
     }
 
@@ -138,10 +157,11 @@ export default function SingleListView({
       } else {
         const prev = reorderedList[destination.index - 1];
         const next = reorderedList[destination.index + 1];
-        newPosition = ((prev?.position || 0) + (next?.position || 0)) / 2;
+        newPosition =
+          ((prev?.position || 0) + (next?.position || 0)) / 2;
       }
 
-      onUpdateItem(movedItem.id, { position: newPosition });
+      updateItem(listId, movedItem.id, { position: newPosition });
     }
   };
 
@@ -164,7 +184,7 @@ export default function SingleListView({
                 inputRef={inputRef}
                 onBack={handleUiBack}
                 onClearCompleted={handleClearCompleted}
-                onShare={onShare}
+                onShare={handleShare}
                 onAddItem={onFormSubmit}
                 onInputChange={setInputValue}
                 onClearInput={() => setInputValue("")}
@@ -215,7 +235,9 @@ export default function SingleListView({
                             {editingItemId === item.id ? (
                               <EditItemForm
                                 initialValue={item.text}
-                                onSave={(val) => handleRenameItem(item.id, val)}
+                                onSave={(val) =>
+                                  handleRenameItem(item.id, val)
+                                }
                                 onCancel={() => setEditingItemId(null)}
                               />
                             ) : (
@@ -224,7 +246,7 @@ export default function SingleListView({
                                 searchTerm={inputValue}
                                 onToggle={() => handleToggleItem(item)}
                                 onRename={() => setEditingItemId(item.id)}
-                                onDelete={() => onDeleteItem(item.id)}
+                                onDelete={() => deleteItem(listId, item.id)}
                                 isDragging={snapshot.isDragging}
                                 dragHandleProps={provided.dragHandleProps}
                               />
@@ -245,21 +267,23 @@ export default function SingleListView({
                       ref={provided.innerRef}
                       {...provided.droppableProps}
                       className={`p-2 pt-0 mt-2 transition-colors duration-200 ${
-                        snapshot.isDraggingOver ? "bg-slate-50 rounded-xl" : ""
+                        snapshot.isDraggingOver
+                          ? "bg-slate-50 rounded-xl"
+                          : ""
                       }`}
                     >
                       <div className="opacity-60">
                         {displayActive.length > 0 && (
                           <hr className="my-2 border-slate-100" />
                         )}
-                        {displayCompleted.map((item) => (
+                        {displayCompleted.map((item: TodoItem) => (
                           <SwipeableItem
                             key={item.id}
                             item={item}
                             searchTerm={inputValue}
                             onToggle={() => handleToggleItem(item)}
                             onRename={() => setEditingItemId(item.id)}
-                            onDelete={() => onDeleteItem(item.id)}
+                            onDelete={() => deleteItem(listId, item.id)}
                           />
                         ))}
                       </div>

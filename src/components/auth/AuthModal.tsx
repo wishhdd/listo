@@ -1,6 +1,6 @@
 import { Loader2, LogIn, UserPlus, X } from "lucide-react";
 import React, { useState } from "react";
-import { useAuth } from "../../hooks/useAuth";
+import { useAuthStore } from "../../store/authStore";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -8,7 +8,8 @@ interface AuthModalProps {
 }
 
 export function AuthModal({ isOpen, onClose }: AuthModalProps) {
-  const { login, register } = useAuth();
+  const login = useAuthStore((s) => s.login);
+  const register = useAuthStore((s) => s.register);
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
