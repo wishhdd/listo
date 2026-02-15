@@ -20,6 +20,9 @@
 - **Сборка:** [Vite](https://vitejs.dev/)
 - **Стилизация:** [Tailwind CSS](https://tailwindcss.com/)
 - **Иконки:** [Lucide React](https://lucide.dev/)
+- **Состояние:** [Zustand](https://zustand-demo.pmnd.rs/) (authStore, listStore, uiStore)
+- **Маршрутизация:** [React Router](https://reactrouter.com/) v7
+- **DnD:** [@hello-pangea/dnd](https://github.com/hello-pangea/dnd) (перетаскивание списков/элементов)
 - **PWA:** vite-plugin-pwa
 
 ## Запуск проекта локально
@@ -31,13 +34,15 @@
     cd listo
     ```
 
-2.  **Установите зависимости:**
+2.  **Переменные окружения:** для работы с бэкендом создайте файл `.env` с `VITE_API_URL=<URL API>`. Для деплоя по подпути задайте `VITE_BASE_PATH` (в prod по умолчанию `/listo/`).
+
+3.  **Установите зависимости:**
 
     ```bash
     npm install
     ```
 
-3.  **Запустите сервер разработки:**
+4.  **Запустите сервер разработки:**
 
     ```bash
     npm run dev
@@ -45,7 +50,7 @@
 
     Приложение будет доступно по адресу `http://localhost:5173`.
 
-4.  **Сборка для продакшена (и проверка PWA):**
+5.  **Сборка для продакшена (и проверка PWA):**
     ```bash
     npm run build
     npm run preview
@@ -60,19 +65,21 @@ src/
 │   ├── auth/         # Модалки входа, выхода, подтверждения
 │   ├── home/         # Карточки списков, формы, шаринг, инвайты
 │   ├── list/         # Элементы списка (Header, Input, SwipeItem, EditItem)
+│   ├── layout/       # MainLayout
 │   ├── pwa/          # Подсказка установки PWA
+│   ├── sync/         # SyncManager (интервал + refocus → syncWithServer)
 │   ├── ui/           # Базовые элементы (Button, IconWrapper)
 │   └── views/        # Экраны: HomeView, SingleListView
-├── context/          # AuthContext (user, login, logout)
-├── hooks/            # useAuth, useLocalStorage, useSync, useAutoSync, useInvites, useLists, usePWAInstall, useBackNavigation
+├── store/            # Zustand: authStore, listStore, uiStore
+├── hooks/            # useLocalStorage, usePWAInstall, useBackNavigation, useOnFocus, useInterval
 ├── types/            # TypeScript: TodoList, TodoItem, User, ListInvite, API-типы
-├── utils/            # generateId, mergeItemsByNewer, theme, sortListsByPosition
+├── utils/            # generateId, mergeItemsByNewer, theme, sortListsByPosition, notify
 ├── App.tsx           # Роутинг и провайдеры
 └── main.tsx
 ```
 
-- **Авторизация:** через AuthContext; проверка сессии по `/api/auth/checkAuth`; логин/регистрация/логаут.
-- **Синхронизация:** данные хранятся в localStorage (ключ `listo`); при наличии пользователя списки и элементы синкаются с бэкендом (useSync, useAutoSync). Merge по `updatedAt`; новые/изменённые сущности пушатся на сервер.
+- **Авторизация:** через **Zustand** (authStore): checkAuth по `/api/auth/checkAuth`, логин/регистрация/логаут.
+- **Синхронизация:** данные в localStorage через **zustand persist** (ключ `listo`); при авторизации списки и элементы синхронизируются с бэкендом. SyncManager вызывает syncWithServer при монтировании (если user есть), по интервалу (30 с; 5 с для общего списка) и при возврате фокуса на вкладку. Merge по `updatedAt`; новые/изменённые сущности отправляются на сервер.
 
 ## Планы на будущее (Roadmap)
 
@@ -80,6 +87,8 @@ src/
 - [x] Этап 2: Бэкенд и синхронизация списков между устройствами.
 - [x] Совместное редактирование списков (общий доступ и синхронизация).
 - [ ] Мгновенные обновления при совместном редактировании (WebSocket).
+
+Бэкенд API расположен в отдельном репозитории/каталоге.
 
 ## Лицензия
 
