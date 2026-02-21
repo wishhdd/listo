@@ -7,6 +7,7 @@ import type {
   TodoItem,
   TodoList,
 } from "../types";
+import { POSITION_GAP } from "../utils/constants";
 import { generateId } from "../utils/generateId";
 import { mergeItemsByNewer } from "../utils/mergeItemsByNewer";
 import { sortListsByPosition } from "../utils/sortListsByPosition";
@@ -31,7 +32,10 @@ export interface ListState {
     updates: Partial<TodoItem>,
   ) => void;
   deleteItem: (listId: string, itemId: string) => void;
-  updateListMembers: (listId: string, members: number[]) => void | Promise<void>;
+  updateListMembers: (
+    listId: string,
+    members: number[],
+  ) => void | Promise<void>;
   leaveList: (listId: string) => Promise<void>;
   clearCompleted: (listId: string) => void;
   clearLists: () => void;
@@ -88,7 +92,7 @@ export const useListStore = create<ListState>()(
           themeColor: getRandomColor(),
           createdAt: Date.now(),
           updatedAt: Date.now(),
-          position: firstPos - 1024,
+          position: firstPos - POSITION_GAP,
           ownerId: user?.userId,
           members: user ? [] : undefined,
         };
@@ -145,10 +149,11 @@ export const useListStore = create<ListState>()(
         let newPosition = 0;
         if (destinationIndex === 0) {
           const first = reordered[1];
-          newPosition = (first?.position ?? first?.createdAt ?? 0) - 1024;
+          newPosition =
+            (first?.position ?? first?.createdAt ?? 0) - POSITION_GAP;
         } else if (destinationIndex === reordered.length - 1) {
           const last = reordered[destinationIndex - 1];
-          newPosition = (last?.position ?? last?.createdAt ?? 0) + 1024;
+          newPosition = (last?.position ?? last?.createdAt ?? 0) + POSITION_GAP;
         } else {
           const prev = reordered[destinationIndex - 1];
           const next = reordered[destinationIndex + 1];
@@ -190,7 +195,7 @@ export const useListStore = create<ListState>()(
           id: generateId(),
           text,
           completed: false,
-          position: minPos - 1024,
+          position: minPos - POSITION_GAP,
           updatedAt: Date.now(),
         };
         const updatedList = {
@@ -300,10 +305,12 @@ export const useListStore = create<ListState>()(
           console.error(e);
           set((s) => ({
             lists: s.lists.map((l) =>
-              l.id === listId ? { ...l, members: prevMembers } : l
+              l.id === listId ? { ...l, members: prevMembers } : l,
             ),
           }));
-          useUIStore.getState().actions.showToast("Не удалось обновить участников", "error");
+          useUIStore
+            .getState()
+            .actions.showToast("Не удалось обновить участников", "error");
         }
       },
 

@@ -7,6 +7,7 @@ import {
 import { useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useBackNavigation } from "../../hooks/useBackNavigation";
+import { POSITION_GAP } from "../../utils/constants";
 import type { TodoItem } from "../../types";
 import type { AuthState } from "../../store/authStore";
 import type { ListState } from "../../store/listStore";
@@ -27,7 +28,7 @@ export default function SingleListView() {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
   const list = useListStore((s: ListState) =>
-    listId ? s.lists.find((l) => l.id === listId) ?? null : null
+    listId ? (s.lists.find((l) => l.id === listId) ?? null) : null,
   );
 
   const user = useAuthStore((s: AuthState) => s.user);
@@ -36,14 +37,14 @@ export default function SingleListView() {
       addItem: s.addItem,
       deleteItem: s.deleteItem,
       updateItem: s.updateItem,
-    }))
+    })),
   );
 
   const { openConfirm, setShareListId } = useUIStore(
     useShallow((s: UIState) => ({
       openConfirm: s.actions.openConfirm,
       setShareListId: s.actions.setShareListId,
-    }))
+    })),
   );
 
   const handleBack = () => navigate("/");
@@ -51,13 +52,13 @@ export default function SingleListView() {
 
   const activeItems = useMemo(
     () => (list?.items ?? []).filter((i: TodoItem) => !i.completed),
-    [list?.items]
+    [list?.items],
   );
 
   const sortedActiveItems = useMemo(
     () =>
       [...activeItems].sort((a, b) => (a.position || 0) - (b.position || 0)),
-    [activeItems]
+    [activeItems],
   );
 
   if (!listId || !list) {
@@ -72,11 +73,11 @@ export default function SingleListView() {
 
   const displayActive = sortedActiveItems.filter(
     (i: TodoItem) =>
-      !inputValue || i.text.toLowerCase().includes(inputValue.toLowerCase())
+      !inputValue || i.text.toLowerCase().includes(inputValue.toLowerCase()),
   );
   const displayCompleted = completedItems.filter(
     (i: TodoItem) =>
-      !inputValue || i.text.toLowerCase().includes(inputValue.toLowerCase())
+      !inputValue || i.text.toLowerCase().includes(inputValue.toLowerCase()),
   );
 
   const completedCount = completedItems.length;
@@ -130,14 +131,14 @@ export default function SingleListView() {
     if (destination.droppableId === "zone-top") {
       const first = sortedActiveItems[0];
       const firstPos = first ? first.position || 0 : 0;
-      updateItem(listId, movedItem.id, { position: firstPos - 1024 });
+      updateItem(listId, movedItem.id, { position: firstPos - POSITION_GAP });
       return;
     }
 
     if (destination.droppableId === "zone-bottom") {
       const last = sortedActiveItems[sortedActiveItems.length - 1];
       const lastPos = last ? last.position || 0 : 0;
-      updateItem(listId, movedItem.id, { position: lastPos + 1024 });
+      updateItem(listId, movedItem.id, { position: lastPos + POSITION_GAP });
       return;
     }
 
@@ -150,15 +151,14 @@ export default function SingleListView() {
 
       if (destination.index === 0) {
         const first = reorderedList[1];
-        newPosition = (first?.position || 0) - 1024;
+        newPosition = (first?.position || 0) - POSITION_GAP;
       } else if (destination.index === reorderedList.length - 1) {
         const last = reorderedList[destination.index - 1];
-        newPosition = (last?.position || 0) + 1024;
+        newPosition = (last?.position || 0) + POSITION_GAP;
       } else {
         const prev = reorderedList[destination.index - 1];
         const next = reorderedList[destination.index + 1];
-        newPosition =
-          ((prev?.position || 0) + (next?.position || 0)) / 2;
+        newPosition = ((prev?.position || 0) + (next?.position || 0)) / 2;
       }
 
       updateItem(listId, movedItem.id, { position: newPosition });
@@ -235,9 +235,7 @@ export default function SingleListView() {
                             {editingItemId === item.id ? (
                               <EditItemForm
                                 initialValue={item.text}
-                                onSave={(val) =>
-                                  handleRenameItem(item.id, val)
-                                }
+                                onSave={(val) => handleRenameItem(item.id, val)}
                                 onCancel={() => setEditingItemId(null)}
                               />
                             ) : (
@@ -267,9 +265,7 @@ export default function SingleListView() {
                       ref={provided.innerRef}
                       {...provided.droppableProps}
                       className={`p-2 pt-0 mt-2 transition-colors duration-200 ${
-                        snapshot.isDraggingOver
-                          ? "bg-slate-50 rounded-xl"
-                          : ""
+                        snapshot.isDraggingOver ? "bg-slate-50 rounded-xl" : ""
                       }`}
                     >
                       <div className="opacity-60">
