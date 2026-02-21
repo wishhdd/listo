@@ -1,4 +1,6 @@
 import type { DraggableProvidedDragHandleProps } from "@hello-pangea/dnd";
+import type { MotionValue } from "framer-motion";
+import { animate, motion, useMotionValue } from "framer-motion";
 import {
   CheckCircle2,
   Circle,
@@ -6,8 +8,13 @@ import {
   GripVertical,
   Trash2,
 } from "lucide-react";
-import React, { useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { TodoItem } from "../../types";
+
+const SNAP_THRESHOLD = 60;
+const SNAP_OPEN = 80;
+const DRAG_CONSTRAINTS = { left: -SNAP_OPEN, right: SNAP_OPEN };
+const SPRING = { type: "spring" as const, stiffness: 300, damping: 30 };
 
 interface SwipeableItemProps {
   item: TodoItem;
@@ -28,9 +35,9 @@ export function SwipeableItem({
   dragHandleProps,
   isDragging,
 }: SwipeableItemProps) {
-  const [offset, setOffset] = useState(0);
+  const x = useMotionValue(0);
+  const [snapPosition, setSnapPosition] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
-  const startX = useRef<number | null>(null);
 
   const [prevProps, setPrevProps] = useState({
     completed: item.completed,
@@ -42,9 +49,32 @@ export function SwipeableItem({
     searchTerm !== prevProps.searchTerm
   ) {
     setPrevProps({ completed: item.completed, searchTerm: searchTerm });
-    setOffset(0);
+    x.set(0);
+    queueMicrotask(() => setSnapPosition(0));
     setIsAnimating(false);
   }
+
+  useEffect(() => {
+    x.set(0);
+    queueMicrotask(() => setSnapPosition(0));
+  }, [item.id, x]);
+
+  const runSnap = (target: number) => {
+    (animate as (value: MotionValue<number>, keyframes: number, options?: { transition: typeof SPRING }) => unknown)(x, target, { transition: SPRING });
+  };
+
+  const handleDragEnd = () => {
+    const current = x.get();
+    const snap = current < -SNAP_THRESHOLD ? -SNAP_OPEN : current > SNAP_THRESHOLD ? SNAP_OPEN : 0;
+    setSnapPosition(snap);
+    runSnap(snap);
+  };
+
+  const close = (fn?: () => void) => {
+    fn?.();
+    setSnapPosition(0);
+    runSnap(0);
+  };
 
   const handleToggleClick = (e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
@@ -58,39 +88,21 @@ export function SwipeableItem({
     }, 400);
   };
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (isAnimating) return;
-    startX.current = e.touches[0].clientX;
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!startX.current || isAnimating) return;
-    const currentX = e.touches[0].clientX;
-    const diff = currentX - startX.current;
-
-    if (Math.abs(diff) < 10) return;
-    if (diff > -150 && diff < 150) {
-      setOffset(diff);
-    }
-  };
-
-  const handleTouchEnd = () => {
-    if (!startX.current) return;
-    startX.current = null;
-    if (offset < -60) setOffset(-80);
-    else if (offset > 60) setOffset(80);
-    else setOffset(0);
-  };
-
   const isMatch =
     searchTerm.length > 0 &&
     item.text.toLowerCase().includes(searchTerm.toLowerCase());
 
   return (
-    <div
-      className={`relative select-none group mb-2 transition-all duration-300 ease-out ${
-        isAnimating ? "opacity-0 translate-x-10 scale-95" : "opacity-100"
-      } ${isDragging ? "z-50 opacity-90 scale-[1.02]" : "z-auto"}`}
+    <motion.div
+      className={`relative select-none group mb-2 ${
+        isDragging ? "z-50 opacity-90 scale-[1.02]" : "z-auto"
+      }`}
+      animate={{
+        opacity: isAnimating ? 0 : 1,
+        x: isAnimating ? 10 : 0,
+        scale: isAnimating ? 0.95 : 1,
+      }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
     >
       <div
         className={`absolute inset-0 rounded-2xl flex justify-between items-center overflow-hidden mx-2 ${
@@ -100,41 +112,39 @@ export function SwipeableItem({
         <div
           onClick={(e) => {
             e.stopPropagation();
-            onRename();
-            setOffset(0);
+            close(onRename);
           }}
-          className={`w-1/2 h-full bg-blue-500 flex items-center justify-start pl-5 transition-opacity cursor-pointer ${
-            offset > 0 ? "opacity-100" : "opacity-0"
-          }`}
+          className="w-1/2 h-full bg-blue-500 flex items-center justify-start pl-5 cursor-pointer"
         >
           <Edit2 className="text-white" size={20} />
         </div>
         <div
           onClick={(e) => {
             e.stopPropagation();
-            onDelete();
+            close(onDelete);
           }}
-          className={`w-1/2 h-full bg-red-500 flex items-center justify-end pr-5 transition-opacity cursor-pointer ${
-            offset < 0 ? "opacity-100" : "opacity-0"
-          }`}
+          className="w-1/2 h-full bg-red-500 flex items-center justify-end pr-5 cursor-pointer"
         >
           <Trash2 className="text-white" size={20} />
         </div>
       </div>
 
-      <div
-        className={`relative z-10 flex items-stretch gap-3 px-4 py-3 mx-2 rounded-2xl border transition-transform duration-200 ease-out touch-pan-y min-h-[4rem] ${
+      <motion.div
+        className={`relative z-10 flex items-stretch gap-3 px-4 py-3 mx-2 rounded-2xl border transition-colors duration-200 ease-out touch-pan-y min-h-[4rem] ${
           item.completed
             ? "bg-slate-50 border-transparent"
             : "bg-white border-slate-100 shadow-sm"
         } ${isDragging ? "ring-2 ring-blue-500 shadow-xl" : ""}`}
-        style={{ transform: `translateX(${offset}px)` }}
+        style={{ x }}
+        drag={!isDragging ? "x" : false}
+        dragDirectionLock
+        dragConstraints={DRAG_CONSTRAINTS}
+        dragElastic={0}
+        onDragEnd={handleDragEnd}
+        transition={SPRING}
         onClick={() => {
-          if (offset !== 0) setOffset(0);
+          if (snapPosition !== 0) close();
         }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
       >
         <button
           onClick={handleToggleClick}
@@ -210,31 +220,31 @@ export function SwipeableItem({
           <div
             {...dragHandleProps}
             className="flex touch-none cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 self-center p-2 -mr-2 outline-none"
+            onPointerDownCapture={(e) => e.stopPropagation()}
           >
             <GripVertical size={20} />
           </div>
         )}
 
-        {offset > 50 && (
+        {snapPosition > 50 && (
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onRename();
-              setOffset(0);
+              close(onRename);
             }}
             className="absolute inset-y-0 left-[-80px] w-[80px] z-20"
           />
         )}
-        {offset < -50 && (
+        {snapPosition < -50 && (
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onDelete();
+              close(onDelete);
             }}
             className="absolute inset-y-0 right-[-80px] w-[80px] z-20"
           />
         )}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

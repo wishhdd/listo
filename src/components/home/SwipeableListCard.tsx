@@ -1,7 +1,14 @@
 import type { DraggableProvidedDragHandleProps } from "@hello-pangea/dnd";
+import type { MotionValue } from "framer-motion";
+import { animate, motion, useMotionValue } from "framer-motion";
 import { Edit2, GripVertical, LogOut, Share2, Trash2 } from "lucide-react";
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { TodoList } from "../../types";
+
+const SNAP_THRESHOLD = 50;
+const SNAP_OPEN = 80;
+const DRAG_CONSTRAINTS = { left: -SNAP_OPEN, right: SNAP_OPEN };
+const SPRING = { type: "spring" as const, stiffness: 300, damping: 30 };
 
 interface SwipeableListCardProps {
   list: TodoList;
@@ -26,24 +33,11 @@ export function SwipeableListCard({
   dragHandleProps,
   isDragging,
 }: SwipeableListCardProps) {
-  const [offset, setOffset] = useState(0);
-  const offsetRef = useRef(0);
-  const startX = useRef<number | null>(null);
-  const startY = useRef<number | null>(null);
-  const gestureIsHorizontalRef = useRef<boolean | null>(null);
-  const scrollWinsRef = useRef(false);
-  const touchInProgressRef = useRef(false);
-  const dragHandleRef = useRef<HTMLDivElement | null>(null);
-  const isDraggingFromHandle = useRef(false);
-  const isDraggingRef = useRef(isDragging);
-  const slidingRef = useRef<HTMLDivElement | null>(null);
+  const x = useMotionValue(0);
+  const [snapPosition, setSnapPosition] = useState(0);
   const [hasHover, setHasHover] = useState(
     () => typeof window !== "undefined" && window.matchMedia("(hover: hover)").matches
   );
-
-  useEffect(() => {
-    isDraggingRef.current = isDragging;
-  }, [isDragging]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(hover: hover)");
@@ -55,93 +49,25 @@ export function SwipeableListCard({
   }, []);
 
   useEffect(() => {
-    const el = slidingRef.current;
-    if (!el) return;
-    const onTouchMove = (e: TouchEvent) => {
-      if (isDraggingRef.current || isDraggingFromHandle.current || startX.current === null || startY.current === null) return;
-      const deltaX = e.touches[0].clientX - startX.current;
-      const deltaY = e.touches[0].clientY - startY.current;
-      if (gestureIsHorizontalRef.current === null) {
-        const threshold = 10;
-        if (Math.abs(deltaX) >= threshold || Math.abs(deltaY) >= threshold) {
-          gestureIsHorizontalRef.current = Math.abs(deltaX) > Math.abs(deltaY);
-          if (!gestureIsHorizontalRef.current) scrollWinsRef.current = true;
-        }
-      }
-      if (gestureIsHorizontalRef.current === true) {
-        if (Math.abs(deltaX) >= 10) {
-          e.preventDefault();
-          const value = Math.max(-120, Math.min(120, deltaX));
-          offsetRef.current = value;
-          if (slidingRef.current) {
-            slidingRef.current.style.transform = `translateX(${value}px)`;
-          }
-        }
-      }
-    };
-    el.addEventListener("touchmove", onTouchMove, { passive: false });
-    return () => el.removeEventListener("touchmove", onTouchMove);
-  }, []);
+    x.set(0);
+    queueMicrotask(() => setSnapPosition(0));
+  }, [list.id, x]);
 
-  useEffect(() => {
-    queueMicrotask(() => {
-      if (!touchInProgressRef.current) {
-        setOffset(0);
-        offsetRef.current = 0;
-        if (slidingRef.current) {
-          slidingRef.current.style.transform = "translateX(0px)";
-        }
-      }
-    });
-  }, [list.id]);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (isDragging) {
-      isDraggingFromHandle.current = true;
-      return;
-    }
-    
-    const target = e.target as HTMLElement;
-    if (dragHandleRef.current && dragHandleRef.current.contains(target)) {
-      isDraggingFromHandle.current = true;
-      return;
-    }
-    
-    isDraggingFromHandle.current = false;
-    startX.current = e.touches[0].clientX;
-    startY.current = e.touches[0].clientY;
-    gestureIsHorizontalRef.current = null;
-    scrollWinsRef.current = false;
-    offsetRef.current = offset;
-    touchInProgressRef.current = true;
+  const runSnap = (target: number) => {
+    (animate as (value: MotionValue<number>, keyframes: number, options?: { transition: typeof SPRING }) => unknown)(x, target, { transition: SPRING });
   };
 
-  const handleTouchEnd = () => {
-    if (isDragging || isDraggingFromHandle.current) {
-      isDraggingFromHandle.current = false;
-      touchInProgressRef.current = false;
-      return;
-    }
-    if (!startX.current) return;
-    touchInProgressRef.current = false;
-    gestureIsHorizontalRef.current = null;
-    scrollWinsRef.current = false;
-    startY.current = null;
-    const current = offsetRef.current;
-    const snap = current < -50 ? -80 : current > 50 ? 80 : 0;
-    setOffset(snap);
-    if (slidingRef.current) {
-      slidingRef.current.style.transform = `translateX(${snap}px)`;
-    }
-    startX.current = null;
+  const handleDragEnd = () => {
+    const current = x.get();
+    const snap = current < -SNAP_THRESHOLD ? -SNAP_OPEN : current > SNAP_THRESHOLD ? SNAP_OPEN : 0;
+    setSnapPosition(snap);
+    runSnap(snap);
   };
 
-  const handleTouchCancel = () => {
-    touchInProgressRef.current = false;
-    gestureIsHorizontalRef.current = null;
-    scrollWinsRef.current = false;
-    startX.current = null;
-    startY.current = null;
+  const close = (fn?: () => void) => {
+    fn?.();
+    setSnapPosition(0);
+    runSnap(0);
   };
 
   const showLeaveSwipe = !isOwner || (list.members && list.members.length > 0);
@@ -155,8 +81,7 @@ export function SwipeableListCard({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onRename();
-                setOffset(0);
+                close(onRename);
               }}
               aria-label="Редактировать список"
               className="w-1/2 h-full bg-blue-500 flex items-center justify-start pl-6 cursor-pointer border-0 appearance-none"
@@ -180,8 +105,7 @@ export function SwipeableListCard({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              onLeave?.();
-              setOffset(0);
+              close(onLeave);
             }}
             aria-label="Выйти из списка"
             className="w-1/2 h-full bg-amber-500 flex items-center justify-end pr-6 gap-2 cursor-pointer border-0 appearance-none"
@@ -192,19 +116,21 @@ export function SwipeableListCard({
         )}
       </div>
 
-      <div
-        ref={slidingRef}
+      <motion.div
         className={`relative z-10 h-full bg-white p-5 rounded-2xl shadow-lg border-slate-100 active:scale-[0.98] transition-transform duration-200 ease-out cursor-pointer flex items-center justify-between touch-pan-y overflow-hidden ${
           isDragging ? "ring-2 ring-blue-500 shadow-xl" : ""
         } ${hasHover ? "group" : ""}`}
-        style={{ transform: `translateX(${offset}px)` }}
+        style={{ x }}
+        drag={!isDragging ? "x" : false}
+        dragDirectionLock
+        dragConstraints={DRAG_CONSTRAINTS}
+        dragElastic={0}
+        onDragEnd={handleDragEnd}
+        transition={SPRING}
         onClick={() => {
-          if (offset === 0) onSelect();
-          else setOffset(0);
+          if (snapPosition === 0) onSelect();
+          else close();
         }}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchCancel}
       >
         <div
           className={`absolute left-0 top-0 bottom-0 w-2 rounded-l-2xl ${list.themeColor}`}
@@ -213,14 +139,8 @@ export function SwipeableListCard({
         {dragHandleProps && (
           <div
             {...dragHandleProps}
-            ref={dragHandleRef}
             className="flex items-center justify-center p-2 text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing touch-none"
-            onMouseDown={() => {
-              isDraggingFromHandle.current = true;
-            }}
-            onTouchStart={() => {
-              isDraggingFromHandle.current = true;
-            }}
+            onPointerDownCapture={(e) => e.stopPropagation()}
           >
             <GripVertical size={20} />
           </div>
@@ -343,28 +263,27 @@ export function SwipeableListCard({
           )}
         </div>
 
-        {offset > 50 && isOwner && (
+        {snapPosition > SNAP_THRESHOLD && isOwner && (
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onRename();
-              setOffset(0);
+              close(onRename);
             }}
             className="absolute inset-y-0 left-[-80px] w-[80px] z-20"
           />
         )}
-        {offset < -50 && (
+        {snapPosition < -SNAP_THRESHOLD && (
           <button
             onClick={(e) => {
               e.stopPropagation();
               if (isOwner) onDelete();
               else onLeave?.();
-              setOffset(0);
+              close();
             }}
             className="absolute inset-y-0 right-[-80px] w-[80px] z-20"
           />
         )}
-      </div>
+      </motion.div>
     </div>
   );
 }
