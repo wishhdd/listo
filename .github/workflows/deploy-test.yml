@@ -40,5 +40,4 @@ jobs:
           server-dir: ./
 
           protocol: ftps
-          port: 990
           dangerous-clean-slate: true
