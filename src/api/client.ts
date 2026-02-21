@@ -4,13 +4,18 @@ import { triggerUnauthorized } from "./apiEvents";
 const BASE_URL = import.meta.env.VITE_API_URL || "";
 
 export class ApiError extends Error {
+  status: number;
+  errors?: { message?: string; [key: string]: unknown };
+
   constructor(
     message: string,
-    public status: number,
-    public errors?: { message?: string; [key: string]: unknown }
+    status: number,
+    errors?: { message?: string; [key: string]: unknown }
   ) {
     super(message);
     this.name = "ApiError";
+    this.status = status;
+    this.errors = errors;
     Object.setPrototypeOf(this, ApiError.prototype);
   }
 }
