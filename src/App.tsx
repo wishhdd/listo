@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Routes, Route, useParams, useNavigate } from "react-router-dom";
-import { setupInterceptors } from "./api/client";
+import { onUnauthorized } from "./api/apiEvents";
 import { ConfirmModal } from "./components/auth/ConfirmModal";
 import { InviteModal } from "./components/home/InviteModal";
 import { InviteFetcher } from "./components/home/InviteFetcher";
@@ -144,9 +144,10 @@ export default function App() {
 
   useEffect(() => {
     checkAuth();
-    setupInterceptors(() => {
+    const unsubscribe = onUnauthorized(() => {
       useAuthStore.getState().logout();
     });
+    return () => unsubscribe();
   }, [checkAuth]);
 
   return (

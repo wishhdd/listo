@@ -1,16 +1,18 @@
 import { notifyError } from "../utils/notify";
+import { triggerUnauthorized } from "./apiEvents";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "";
 
-let onUnauthorized: (() => void) | null = null;
-
-export function setupInterceptors(callback: () => void): void {
-  onUnauthorized = callback;
-}
-
-interface ApiError {
-  message: string;
-  errors?: Record<string, unknown>;
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+    public errors?: { message?: string; [key: string]: unknown }
+  ) {
+    super(message);
+    this.name = "ApiError";
+    Object.setPrototypeOf(this, ApiError.prototype);
+  }
 }
 
 async function request<T>(
@@ -31,27 +33,44 @@ async function request<T>(
     },
     credentials: "include",
   };
+
   try {
     const response = await fetch(url, config);
 
     if (response.status === 401) {
-      onUnauthorized?.();
-      throw new Error("UNAUTHORIZED");
+      triggerUnauthorized();
+      throw new ApiError("Unauthorized", 401);
     }
-    const data = await response.json();
 
     if (!response.ok) {
-      const error = new Error(data.message || "Ошибка сервера") as Error &
-        ApiError;
-      error.errors = data.errors;
-      throw error;
+      let errorData;
+      try {
+        errorData = await response.json();
+      } catch {
+        // Игнорируем ошибку парсинга, используем дефолтный текст
+      }
+
+      throw new ApiError(
+        errorData?.message || response.statusText || "Ошибка сервера",
+        response.status,
+        errorData?.errors
+      );
     }
-    return data as T;
+
+    // Для успешных ответов ожидаем JSON
+    // Если сервер вернет 204 No Content, response.json() упадет.
+    // Добавим проверку на 204.
+    if (response.status === 204) {
+      return {} as T;
+    }
+
+    return (await response.json()) as T;
   } catch (error: unknown) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
+    if (error instanceof ApiError) {
       throw error;
     }
-    notifyError("Не удалось сохранить. Проверьте интернет.");
+
+    notifyError("Не удалось выполнить запрос. Проверьте интернет.");
     console.error(`API Error (${url}):`, error);
     throw error;
   }

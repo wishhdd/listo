@@ -1,6 +1,7 @@
 import { Loader2, LogIn, UserPlus, X } from "lucide-react";
 import React, { useState } from "react";
 import { useAuthStore } from "../../store/authStore";
+import { ApiError } from "../../api/client";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -35,13 +36,10 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     } catch (err: unknown) {
       let msg = "Ошибка авторизации";
 
-      if (err instanceof Error) {
+      if (err instanceof ApiError) {
+        msg = err.errors?.message || err.message;
+      } else if (err instanceof Error) {
         msg = err.message;
-        const apiError = err as Error & { errors?: { message?: string } };
-
-        if (apiError.errors?.message) {
-          msg = apiError.errors.message;
-        }
       }
       setError(msg);
     } finally {
