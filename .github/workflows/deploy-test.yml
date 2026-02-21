@@ -39,5 +39,6 @@ jobs:
           local-dir: ./dist/
           server-dir: ./
 
-          protocol: ftp
+          protocol: ftps
+          port: 990
           dangerous-clean-slate: true
