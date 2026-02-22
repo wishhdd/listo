@@ -49,8 +49,8 @@ export function EditListForm({ list, onSave, onCancel }: EditListFormProps) {
           <X size={20} />
         </button>
       </div>
-      <div className="p-1.5 overflow-x-auto">
-        <div className="grid grid-cols-[repeat(12,2rem)] gap-2 w-max">
+      <div className="p-1.5">
+        <div className="grid grid-cols-[repeat(auto-fill,2.29rem)] gap-2 justify-center">
           {THEME_COLORS.map((color) => (
             <button
               key={color}
