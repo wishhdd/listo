@@ -18,7 +18,7 @@ export interface ListState {
   lastSyncedAt: number | null;
   createList: (title: string) => void;
   deleteList: (id: string) => void;
-  renameList: (id: string, newTitle: string) => void;
+  updateListDetails: (id: string, newTitle: string, newColor: string) => void;
   reorderLists: (sourceIndex: number, destinationIndex: number) => void;
   addItem: (listId: string, text: string) => void;
   updateItem: (
@@ -86,25 +86,33 @@ export const useListStore = create<ListState>()(
         }
       },
 
-      renameList: (id: string, newTitle: string) => {
+      updateListDetails: (id: string, newTitle: string, newColor: string) => {
         const { lists } = get();
         const list = lists.find((l) => l.id === id);
         if (!list) return;
-        const updated = { ...list, title: newTitle, updatedAt: Date.now() };
+        const titleChanged = list.title !== newTitle;
+        const updated = {
+          ...list,
+          title: newTitle,
+          themeColor: newColor,
+          updatedAt: titleChanged ? Date.now() : list.updatedAt,
+        };
         set({
           lists: lists.map((l) => (l.id === id ? updated : l)),
         });
-        const user = useAuthStore.getState().user;
-        if (user) {
-          api
-            .post("/api/listo", {
-              id: updated.id,
-              title: updated.title,
-              owner_id: updated.ownerId,
-              members: updated.members ?? [],
-              updated_at: updated.updatedAt,
-            })
-            .catch((e) => console.error(e));
+        if (titleChanged) {
+          const user = useAuthStore.getState().user;
+          if (user) {
+            api
+              .post("/api/listo", {
+                id: updated.id,
+                title: updated.title,
+                owner_id: updated.ownerId,
+                members: updated.members ?? [],
+                updated_at: updated.updatedAt,
+              })
+              .catch((e) => console.error(e));
+          }
         }
       },
 

@@ -30,12 +30,12 @@ export default function HomeView() {
     useShallow((s) => ({ user: s.user, logout: s.logout }))
   );
 
-  const { lists, createList, renameList, reorderLists, clearLists } =
+  const { lists, createList, updateListDetails, reorderLists, clearLists } =
     useListStore(
       useShallow((s) => ({
         lists: s.lists,
         createList: s.createList,
-        renameList: s.renameList,
+        updateListDetails: s.updateListDetails,
         reorderLists: s.reorderLists,
         clearLists: s.clearLists,
       }))
@@ -72,9 +72,9 @@ export default function HomeView() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isLogoutConfirmOpen]);
 
-  const handleRename = (id: string, title: string) => {
+  const handleRename = (id: string, title: string, color: string) => {
     if (title.trim()) {
-      renameList(id, title.trim());
+      updateListDetails(id, title.trim(), color);
     }
     setEditingListId(null);
   };
@@ -201,7 +201,9 @@ export default function HomeView() {
                       <EditListForm
                         key={list.id}
                         list={list}
-                        onSave={(title) => handleRename(list.id, title)}
+                        onSave={(title, color) =>
+                          handleRename(list.id, title, color)
+                        }
                         onCancel={() => setEditingListId(null)}
                       />
                     ) : (
