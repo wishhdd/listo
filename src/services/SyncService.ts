@@ -1,4 +1,5 @@
 import { api } from "../api/client";
+import { useListStore } from "../store/listStore";
 import type {
   ServerTodoItem,
   ServerTodoList,
@@ -22,6 +23,7 @@ function mapServerListToLocal(
     members: s.members ?? [],
     createdAt: s.created_at ? Number(s.created_at) : Date.now(),
     updatedAt: Number(s.updated_at) || 0,
+    _isFromServer: true,
   };
 }
 
@@ -39,6 +41,7 @@ export const SyncService = {
   async syncLists(
     localLists: TodoList[],
     userId: number,
+    deletedListIds: string[],
   ): Promise<TodoList[]> {
     const serverRaw = await api.get<ServerTodoList[]>("/api/listo");
     const serverLists: TodoList[] = serverRaw.map((s) =>
@@ -49,6 +52,17 @@ export const SyncService = {
     const serverIds = new Set(serverLists.map((s) => s.id));
 
     for (const sList of serverLists) {
+      if (deletedListIds.includes(sList.id)) {
+        api
+          .delete(`/api/listo/${sList.id}`)
+          .then(() => {
+            useListStore.setState((s) => ({
+              deletedListIds: s.deletedListIds.filter((d) => d !== sList.id),
+            }));
+          })
+          .catch(console.error);
+        continue;
+      }
       const lList = localLists.find((l) => l.id === sList.id);
       const themeColor = lList?.themeColor ?? sList.themeColor;
       const baseList = mapServerListToLocal(
@@ -112,6 +126,7 @@ export const SyncService = {
 
     for (const lList of localLists) {
       if (serverIds.has(lList.id)) continue;
+      if (lList._isFromServer) continue;
       if (!lList.ownerId || lList.ownerId === userId) {
         try {
           await api.post("/api/listo", {

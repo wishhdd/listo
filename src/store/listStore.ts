@@ -16,6 +16,7 @@ export interface ListState {
   lists: TodoList[];
   status: SyncStatus;
   lastSyncedAt: number | null;
+  deletedListIds: string[];
   createList: (title: string) => void;
   deleteList: (id: string) => void;
   updateListDetails: (id: string, newTitle: string, newColor: string) => void;
@@ -44,6 +45,7 @@ export const useListStore = create<ListState>()(
       lists: [],
       status: "idle",
       lastSyncedAt: null,
+      deletedListIds: [],
 
       createList: (title: string) => {
         const { lists } = get();
@@ -79,10 +81,20 @@ export const useListStore = create<ListState>()(
       },
 
       deleteList: (id: string) => {
-        set((s) => ({ lists: s.lists.filter((l) => l.id !== id) }));
+        set((s) => ({
+          lists: s.lists.filter((l) => l.id !== id),
+          deletedListIds: [...s.deletedListIds, id],
+        }));
         const user = useAuthStore.getState().user;
         if (user) {
-          api.delete(`/api/listo/${id}`).catch((e) => console.error(e));
+          api
+            .delete(`/api/listo/${id}`)
+            .then(() => {
+              set((s) => ({
+                deletedListIds: s.deletedListIds.filter((d) => d !== id),
+              }));
+            })
+            .catch(console.error);
         }
       },
 
@@ -342,6 +354,7 @@ export const useListStore = create<ListState>()(
           const mergedLists = await SyncService.syncLists(
             get().lists,
             user.userId,
+            get().deletedListIds,
           );
           set({
             lists: mergedLists,

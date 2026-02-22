@@ -17,6 +17,7 @@ export interface TodoList {
   ownerName?: string;
   members?: number[];
   position?: number;
+  _isFromServer?: boolean;
 }
 
 export interface User {
