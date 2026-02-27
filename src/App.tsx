@@ -6,6 +6,7 @@ import { InviteModal } from "./components/home/InviteModal";
 import { InviteFetcher } from "./components/home/InviteFetcher";
 import { ShareListModal } from "./components/home/ShareListModal";
 import { MainLayout } from "./components/layout/MainLayout";
+import { PWAUpdatePrompt } from "./components/pwa/PWAUpdatePrompt";
 import { SyncManager } from "./components/sync/SyncManager";
 import HomeView from "./components/views/HomeView";
 import SingleListView from "./components/views/SingleListView";
@@ -90,6 +91,7 @@ function AppContent() {
     <>
       <SyncManager />
       <InviteFetcher />
+      <PWAUpdatePrompt />
 
       {listIdFromUrl ? <SingleListView /> : <HomeView />}
 

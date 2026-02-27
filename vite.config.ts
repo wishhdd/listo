@@ -35,7 +35,7 @@ export default defineConfig(({ command, mode }) => {
     plugins: [
       react(),
       VitePWA({
-        registerType: "autoUpdate",
+        registerType: "prompt",
         includeAssets: [
           "favicon.ico",
           "apple-touch-icon.png",
@@ -63,6 +63,24 @@ export default defineConfig(({ command, mode }) => {
               type: "image/png",
             },
           ],
+        },
+        workbox: {
+          cleanupOutdatedCaches: true,
+          runtimeCaching: [
+            {
+              urlPattern: /^https:\/\/.*\.(html|htm)$/i,
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "html-cache",
+                expiration: {
+                  maxAgeSeconds: 5 * 60,
+                },
+              },
+            },
+          ],
+        },
+        devOptions: {
+          enabled: false,
         },
       }),
     ],
